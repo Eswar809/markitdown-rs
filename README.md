@@ -3,8 +3,9 @@
 **A Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown)** (178k⭐) —
 convert documents into Markdown for LLM and RAG pipelines, at native speed.
 
-> Status: v0.4 — CSV, plain-text, **HTML**, **DOCX** (OMML math → LaTeX) and **XLSX**
-> converters, **byte-for-byte parity with Python verified**. PPTX / PDF converters are being ported next.
+> Status: v0.5 — CSV, plain-text, **HTML**, **DOCX** (OMML math → LaTeX), **XLSX** and
+> **PPTX** (charts, groups, speaker notes) converters, **byte-for-byte parity with Python
+> verified**. PDF converter is being ported next.
 
 ## Benchmarks — Python vs Rust (in-process, best of N)
 
@@ -14,6 +15,7 @@ convert documents into Markdown for LLM and RAG pipelines, at native speed.
 | HTML → MD (3000 sections + tables + lists, 1.7 MB) | 5142 ms | **311 ms** | **16.5x** |
 | DOCX → MD (AutoGen paper: headings, table, image) | 104 ms | **1.40 ms** | **74x** |
 | XLSX → MD (2 sheets, tables) | 20.4 ms | **1.05 ms** | **19.5x** |
+| PPTX → MD (6 slides: chart, table, picture, groups) | 22.2 ms | **2.00 ms** | **11.1x** |
 
 <sub>Best of N in-process runs on i5-12500H. Reproduce with `examples/bench.rs` + the
 Python converters from the upstream repo.</sub>
@@ -45,15 +47,18 @@ Output is identical to Python markitdown — including markdownify's whitespace/
 collapsing, pipe-escaping rules, blank-row trimming, BOM stripping, autolink shortcuts,
 `javascript:` link removal, data-URI truncation, checkbox inputs, colspan tables, the
 ATX heading style, DOCX heading styles (resolved via style NAME), embedded images with
-alt text, and OMML equations rendered as `$...$` / `$$...$$` LaTeX.
+alt text, OMML equations rendered as `$...$` / `$$...$$` LaTeX, and PPTX slide
+comments with shape-order sorting, chart pipe-tables (`2000.0` float semantics) and
+placeholder picture filenames.
 
 ## Parity methodology (rustdate playbook)
 
 - 25 Rust unit tests covering the tricky corners of all converters
-- **Differential parity suite** ([parity.py](parity.py)): 53 inputs (16 CSV + 32 HTML +
-  4 real DOCX documents including the OMML math document + 1 XLSX workbook, all from the
-  upstream test suite) run through both the Python converters (from the upstream repo)
-  and this crate — **all 53 outputs byte-identical**
+- **Differential parity suite** ([parity.py](parity.py)): 54 inputs (16 CSV + 32 HTML +
+  4 real DOCX documents including the OMML math document + 1 XLSX workbook + 1 PPTX deck
+  with chart/table/picture/groups — all from the upstream test suite) run through both
+  the Python converters (from the upstream repo) and this crate —
+  **all 54 outputs byte-identical**
 
 ## Roadmap
 
@@ -65,7 +70,10 @@ alt text, and OMML equations rendered as `$...$` / `$$...$$` LaTeX.
 - [x] XLSX → Markdown (hand-rolled OOXML parse + pandas `to_html`/column-naming
       semantics — "Unnamed: N" headers, ".N" duplicate suffixes, integral
       numbers, shared strings, parity ✅)
-- [ ] PPTX (slides → sections)
+- [x] PPTX → Markdown (slide comments, (top,left) shape ordering with -inf
+      quirk, titles, text frames, pictures with sanitized alt + placeholder
+      filenames, table HTML round-trip, charts with Python float str
+      semantics (`2000.0`), group recursion, speaker notes, parity ✅)
 - [ ] PPTX (slides → sections)
 - [ ] PDF (largest upstream converter — via pdfium bindings)
 - [ ] Online converters (YouTube/Wikipedia/Bing) and MCP server — later

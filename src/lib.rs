@@ -21,7 +21,7 @@ pub use converter::{
     DocumentConverter, DocumentConverterResult, FailedConversionAttempt, MarkitdownError,
     StreamInfo, PRIORITY_GENERIC_FILE_FORMAT, PRIORITY_SPECIFIC_FILE_FORMAT,
 };
-pub use converters::{CsvConverter, DocxConverter, HtmlConverter, PlainTextConverter, XlsxConverter};
+pub use converters::{CsvConverter, DocxConverter, HtmlConverter, PlainTextConverter, PptxConverter, XlsxConverter};
 
 struct Registration {
     priority: f64,
@@ -68,6 +68,7 @@ impl MarkItDown {
         // specific formats — same set/order as upstream's builtin registration
         md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(DocxConverter));
         md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(XlsxConverter));
+        md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(PptxConverter));
         md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(CsvConverter));
         md
     }

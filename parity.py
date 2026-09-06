@@ -22,12 +22,14 @@ from markitdown._stream_info import StreamInfo                    # noqa: E402
 from markitdown.converters._csv_converter import CsvConverter     # noqa: E402
 from markitdown.converters._docx_converter import DocxConverter   # noqa: E402
 from markitdown.converters._html_converter import HtmlConverter   # noqa: E402
+from markitdown.converters._pptx_converter import PptxConverter   # noqa: E402
 from markitdown.converters._xlsx_converter import XlsxConverter   # noqa: E402
 
 # real sample documents copied from the upstream test suite
 FIXTURES = os.path.join(HERE, "tests", "fixtures")
 DOCX_SAMPLES = ["test.docx", "rlink.docx", "test_with_comment.docx", "equations.docx"]
 XLSX_SAMPLES = ["test.xlsx"]
+PPTX_SAMPLES = ["test.pptx"]
 
 DUMP_EXE = os.path.join(HERE, "target", "release", "examples", "dump.exe")
 
@@ -161,6 +163,32 @@ def run_xlsx_suite():
     return fails
 
 
+def py_convert_pptx(path: str) -> str:
+    data = open(path, "rb").read()
+    res = PptxConverter().convert(io.BytesIO(data),
+                                  StreamInfo(extension=".pptx", charset="utf-8"))
+    return res.markdown
+
+
+def run_pptx_suite():
+    fails = 0
+    print(f"pptx: {len(PPTX_SAMPLES)} upstream sample documents")
+    for name in PPTX_SAMPLES:
+        path = os.path.join(FIXTURES, name)
+        expected = py_convert_pptx(path)
+        got = rs_convert(path, ".pptx")
+        if expected == got:
+            print(f"  OK    {name}")
+        else:
+            fails += 1
+            print(f"  FAIL  {name}")
+            import difflib
+            for line in list(difflib.unified_diff(expected.splitlines(), got.splitlines(),
+                                                  "python", "rust", lineterm=""))[:12]:
+                print("    " + line)
+    return fails
+
+
 def run_suite(name, samples, py_fn, ext):
     fails = 0
     tmp = tempfile.mkdtemp(prefix=f"mdrs-{name}-")
@@ -192,7 +220,9 @@ def main() -> int:
     fails += run_suite("html", HTML_SAMPLES, py_convert_html, ".html")
     fails += run_docx_suite()
     fails += run_xlsx_suite()
-    total = len(CSV_SAMPLES) + len(HTML_SAMPLES) + len(DOCX_SAMPLES) + len(XLSX_SAMPLES)
+    fails += run_pptx_suite()
+    total = (len(CSV_SAMPLES) + len(HTML_SAMPLES) + len(DOCX_SAMPLES)
+             + len(XLSX_SAMPLES) + len(PPTX_SAMPLES))
     print("-" * 64)
     print(f"PASS: {total - fails}/{total} outputs identical" if fails == 0
           else f"{fails} FAILURES out of {total}")
