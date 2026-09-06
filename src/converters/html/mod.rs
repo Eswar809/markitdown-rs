@@ -45,23 +45,31 @@ impl DocumentConverter for HtmlConverter {
         // v1: UTF-8 (charset_normalizer-style detection is a TODO)
         let _ = &stream_info.charset;
         let html = String::from_utf8_lossy(stream.get_ref());
-        let mut dom = parse(&html);
-
-        // Remove javascript and style blocks (upstream extracts them from the
-        // soup before conversion).
-        prune_script_style(&mut dom, 0);
-
-        // Prefer the body element, otherwise the whole document.
-        let body = dom.find_all(0, &["body"]).first().copied().unwrap_or(0);
-        let webpage_text = markdownify::convert(&dom, body).trim().to_string();
-
-        let title = find_title(&dom).filter(|t| !t.is_empty());
-
-        Ok(DocumentConverterResult {
-            title,
-            markdown: webpage_text,
-        })
+        convert_html_string(&html)
     }
+}
+
+/// Shared HTML → Markdown pipeline used by both the HTML converter and the
+/// DOCX converter (which generates HTML as its intermediate form).
+pub(crate) fn convert_html_string(
+    html: &str,
+) -> Result<DocumentConverterResult, ConverterError> {
+    let mut dom = parse(html);
+
+    // Remove javascript and style blocks (upstream extracts them from the
+    // soup before conversion).
+    prune_script_style(&mut dom, 0);
+
+    // Prefer the body element, otherwise the whole document.
+    let body = dom.find_all(0, &["body"]).first().copied().unwrap_or(0);
+    let webpage_text = markdownify::convert(&dom, body).trim().to_string();
+
+    let title = find_title(&dom).filter(|t| !t.is_empty());
+
+    Ok(DocumentConverterResult {
+        title,
+        markdown: webpage_text,
+    })
 }
 
 /// Detaches <script>/<style> elements from the tree (equivalent of upstream's

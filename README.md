@@ -3,8 +3,8 @@
 **A Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown)** (178k⭐) —
 convert documents into Markdown for LLM and RAG pipelines, at native speed.
 
-> Status: v0.2 — CSV, plain-text and **HTML** converters, **byte-for-byte parity with Python
-> verified**. DOCX / XLSX / PPTX / PDF converters are being ported next.
+> Status: v0.3 — CSV, plain-text, **HTML** and **DOCX** (with OMML math → LaTeX) converters,
+> **byte-for-byte parity with Python verified**. XLSX / PPTX / PDF converters are being ported next.
 
 ## Benchmarks — Python vs Rust (in-process, best of N)
 
@@ -12,15 +12,17 @@ convert documents into Markdown for LLM and RAG pipelines, at native speed.
 |---|---:|---:|---:|
 | CSV → MD (300k rows, 13 MB) | 1350–2013 ms | 195–325 ms | **~6.9x** |
 | HTML → MD (3000 sections + tables + lists, 1.7 MB) | 5142 ms | **311 ms** | **16.5x** |
+| DOCX → MD (AutoGen paper: headings, table, image) | 104 ms | **1.40 ms** | **74x** |
 
 <sub>Best of N in-process runs on i5-12500H. Reproduce with `examples/bench.rs` + the
 Python converters from the upstream repo.</sub>
 
-**Why HTML is 16x:** the Python path is a BeautifulSoup DOM walk plus the pure-Python
-`markdownify` transformer. The Rust port uses a hand-rolled lenient parser (modeled on
-`html.parser` + BeautifulSoup semantics — no implicit `<tbody>`, same whitespace-text
-sibling chain) and a direct port of the markdownify converter table, so output stays
-identical while running at native speed.
+**Why DOCX is 74x:** upstream runs a full `pre_process_docx` (BeautifulSoup XML
+re-serialization) + **mammoth** (docx → HTML) + markdownify. The Rust port parses the
+OOXML parts directly (`roxmltree` + zip), generates the intermediate HTML in one pass —
+including the OMML equation → LaTeX conversion — and feeds the same markdownify pipeline.
+**All four upstream sample documents (including `equations.docx` math) convert
+byte-identically.**
 
 ## Why
 
@@ -40,22 +42,25 @@ println!("{} ({:?})", result.markdown, result.title);
 
 Output is identical to Python markitdown — including markdownify's whitespace/newline
 collapsing, pipe-escaping rules, blank-row trimming, BOM stripping, autolink shortcuts,
-`javascript:` link removal, data-URI truncation, checkbox inputs, colspan tables, and the
-ATX heading style.
+`javascript:` link removal, data-URI truncation, checkbox inputs, colspan tables, the
+ATX heading style, DOCX heading styles (resolved via style NAME), embedded images with
+alt text, and OMML equations rendered as `$...$` / `$$...$$` LaTeX.
 
 ## Parity methodology (rustdate playbook)
 
-- 25 Rust unit tests covering the tricky corners of all three converters
-- **Differential parity suite** ([parity.py](parity.py)): 48 adversarial inputs (16 CSV +
-  32 HTML) run through both the Python converters (from the upstream repo) and this crate —
-  **all 48 outputs byte-identical**
+- 25 Rust unit tests covering the tricky corners of all converters
+- **Differential parity suite** ([parity.py](parity.py)): 52 inputs (16 CSV + 32 HTML +
+  4 real DOCX documents from the upstream test suite, including the OMML math document)
+  run through both the Python converters (from the upstream repo) and this crate —
+  **all 52 outputs byte-identical**
 
 ## Roadmap
 
 - [x] CSV converter (parity ✅)
 - [x] Plain-text passthrough
 - [x] HTML → Markdown (hand-rolled parser + full markdownify port, parity ✅)
-- [ ] DOCX (zip + OOXML parsing, like upstream's hand-rolled `converter_utils/docx`)
+- [x] DOCX → HTML → Markdown (OOXML + style-name headings + tables + images +
+      OMML math → LaTeX, parity ✅ on all upstream samples)
 - [ ] XLSX (spreadsheet → tables)
 - [ ] PPTX (slides → sections)
 - [ ] PDF (largest upstream converter — via pdfium bindings)
