@@ -3,8 +3,8 @@
 **A Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown)** (178k⭐) —
 convert documents into Markdown for LLM and RAG pipelines, at native speed.
 
-> Status: v0.3 — CSV, plain-text, **HTML** and **DOCX** (with OMML math → LaTeX) converters,
-> **byte-for-byte parity with Python verified**. XLSX / PPTX / PDF converters are being ported next.
+> Status: v0.4 — CSV, plain-text, **HTML**, **DOCX** (OMML math → LaTeX) and **XLSX**
+> converters, **byte-for-byte parity with Python verified**. PPTX / PDF converters are being ported next.
 
 ## Benchmarks — Python vs Rust (in-process, best of N)
 
@@ -13,6 +13,7 @@ convert documents into Markdown for LLM and RAG pipelines, at native speed.
 | CSV → MD (300k rows, 13 MB) | 1350–2013 ms | 195–325 ms | **~6.9x** |
 | HTML → MD (3000 sections + tables + lists, 1.7 MB) | 5142 ms | **311 ms** | **16.5x** |
 | DOCX → MD (AutoGen paper: headings, table, image) | 104 ms | **1.40 ms** | **74x** |
+| XLSX → MD (2 sheets, tables) | 20.4 ms | **1.05 ms** | **19.5x** |
 
 <sub>Best of N in-process runs on i5-12500H. Reproduce with `examples/bench.rs` + the
 Python converters from the upstream repo.</sub>
@@ -49,10 +50,10 @@ alt text, and OMML equations rendered as `$...$` / `$$...$$` LaTeX.
 ## Parity methodology (rustdate playbook)
 
 - 25 Rust unit tests covering the tricky corners of all converters
-- **Differential parity suite** ([parity.py](parity.py)): 52 inputs (16 CSV + 32 HTML +
-  4 real DOCX documents from the upstream test suite, including the OMML math document)
-  run through both the Python converters (from the upstream repo) and this crate —
-  **all 52 outputs byte-identical**
+- **Differential parity suite** ([parity.py](parity.py)): 53 inputs (16 CSV + 32 HTML +
+  4 real DOCX documents including the OMML math document + 1 XLSX workbook, all from the
+  upstream test suite) run through both the Python converters (from the upstream repo)
+  and this crate — **all 53 outputs byte-identical**
 
 ## Roadmap
 
@@ -61,7 +62,10 @@ alt text, and OMML equations rendered as `$...$` / `$$...$$` LaTeX.
 - [x] HTML → Markdown (hand-rolled parser + full markdownify port, parity ✅)
 - [x] DOCX → HTML → Markdown (OOXML + style-name headings + tables + images +
       OMML math → LaTeX, parity ✅ on all upstream samples)
-- [ ] XLSX (spreadsheet → tables)
+- [x] XLSX → Markdown (hand-rolled OOXML parse + pandas `to_html`/column-naming
+      semantics — "Unnamed: N" headers, ".N" duplicate suffixes, integral
+      numbers, shared strings, parity ✅)
+- [ ] PPTX (slides → sections)
 - [ ] PPTX (slides → sections)
 - [ ] PDF (largest upstream converter — via pdfium bindings)
 - [ ] Online converters (YouTube/Wikipedia/Bing) and MCP server — later

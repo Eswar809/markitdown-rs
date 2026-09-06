@@ -648,7 +648,9 @@ fn convert_td(dom: &Dom, idx: usize, text: &str) -> String {
 
 fn convert_tr(dom: &Dom, idx: usize, text: &str) -> String {
     let cells = dom.find_all(idx, &["td", "th"]);
-    let is_first_row = !dom.has_prev_sibling_raw(idx);
+    // bs4 find_previous_sibling() matches Tags only — whitespace text nodes
+    // between rows do not count
+    let is_first_row = dom.prev_element_sibling(idx).is_none();
     let parent = dom.nodes[idx].parent;
     let parent_name = parent.and_then(|p| dom.name(p).map(String::from));
     let is_headrow = (!cells.is_empty()
