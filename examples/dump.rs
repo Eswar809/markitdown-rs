@@ -1,10 +1,7 @@
-//! Debug helper: convert a file with a specific converter and print Markdown.
-//! Usage: dump <file> <extension> [charset]
-//!   dump data.csv .csv utf-8
+//! Debug helper: convert a file through the full converter chain and print
+//! Markdown. Usage: dump <file> <extension> [charset]
 
-use std::io::Cursor;
-
-use markitdown_rs::{CsvConverter, DocumentConverter, StreamInfo};
+use markitdown_rs::{MarkItDown, StreamInfo};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -18,8 +15,8 @@ fn main() {
         charset: args.get(3).cloned(),
         ..Default::default()
     };
-    let result = CsvConverter
-        .convert(&mut Cursor::new(data), &info)
+    let result = MarkItDown::new()
+        .convert_stream(data, &[info])
         .expect("conversion failed");
     print!("{}", result.markdown);
 }

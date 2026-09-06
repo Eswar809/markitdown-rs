@@ -1,5 +1,6 @@
 /target
 Cargo.lock
 big.csv
+big.html
 __pycache__/
 *.pyc

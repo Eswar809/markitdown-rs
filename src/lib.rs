@@ -21,7 +21,7 @@ pub use converter::{
     DocumentConverter, DocumentConverterResult, FailedConversionAttempt, MarkitdownError,
     StreamInfo, PRIORITY_GENERIC_FILE_FORMAT, PRIORITY_SPECIFIC_FILE_FORMAT,
 };
-pub use converters::{CsvConverter, PlainTextConverter};
+pub use converters::{CsvConverter, HtmlConverter, PlainTextConverter};
 
 struct Registration {
     priority: f64,
@@ -56,11 +56,15 @@ impl MarkItDown {
             next_order: 0,
         };
         // Same registration order as markitdown's `_register_builtins`:
-        // generic catch-alls first, then specific formats.
+        // generic catch-alls first, then specific formats. Upstream's
+        // register_converter inserts at index 0, so among equal priorities the
+        // LATEST registration is tried first (HtmlConverter beats
+        // PlainTextConverter); the sort below reproduces that.
         md.register(
             PRIORITY_GENERIC_FILE_FORMAT,
             Box::new(PlainTextConverter),
         );
+        md.register(PRIORITY_GENERIC_FILE_FORMAT, Box::new(HtmlConverter));
         md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(CsvConverter));
         md
     }
@@ -86,16 +90,28 @@ impl MarkItDown {
         data: Vec<u8>,
         guesses: &[StreamInfo],
     ) -> Result<DocumentConverterResult, MarkitdownError> {
+        let mut cursor = Cursor::new(data);
+        self.convert_stream_cursor(&mut cursor, guesses)
+    }
+
+    /// Same as [`convert_stream`] over an existing cursor (the position is
+    /// rewound before each converter attempt).
+    pub fn convert_stream_cursor(
+        &self,
+        mut cursor: &mut Cursor<Vec<u8>>,
+        guesses: &[StreamInfo],
+    ) -> Result<DocumentConverterResult, MarkitdownError> {
         let mut registrations = self.converters.iter().collect::<Vec<_>>();
         registrations.sort_by(|a, b| {
             a.priority
                 .partial_cmp(&b.priority)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.order.cmp(&b.order))
+                // stable sort, but later registrations come first among
+                // equals (upstream inserts at index 0)
+                .then(b.order.cmp(&a.order))
         });
 
         let mut attempts: Vec<FailedConversionAttempt> = Vec::new();
-        let mut cursor = Cursor::new(data);
 
         let all_guesses: Vec<StreamInfo> = guesses
             .iter()
