@@ -46,12 +46,13 @@ Lower is better. All rows were measured back-to-back in a single session.
 | PPTX (6 slides, chart+table) | 24 ms | 1.33 ms | 18x |
 
 Methodology: i5-12500H, CPython 3.12, markitdown 0.1.8b1 vs markitdown-rs 0.6.0,
-best-of-N in-process runs, single session. See the graph in
-[benchmark.png](benchmark.png). Reproduce:
+best-of-N in-process runs, single session. Reproduce:
 
 ```bash
 python plot_bench.py
 ```
+
+![Python markitdown vs markitdown-rs conversion speed benchmark](benchmark.png)
 
 ## Installation
 
