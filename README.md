@@ -7,19 +7,22 @@ convert documents into Markdown for LLM and RAG pipelines, at native speed.
 > **PPTX** (charts, groups, speaker notes) converters, **byte-for-byte parity with Python
 > verified**. PDF converter included at **assertion-level parity** (see PDF section).
 
-## Benchmarks — Python vs Rust (in-process, best of N)
+## Benchmarks — Python vs Rust (single session, in-process, best of N)
 
 | Case | Python `markitdown` 0.1.8b1 | markitdown-rs | speedup |
 |---|---:|---:|---:|
-| CSV → MD (300k rows, 13 MB) | 1350–2013 ms | 195–325 ms | **~6.9x** |
-| HTML → MD (3000 sections + tables + lists, 1.7 MB) | 5142 ms | **311 ms** | **16.5x** |
-| DOCX → MD (AutoGen paper: headings, table, image) | 104 ms | **1.40 ms** | **74x** |
-| XLSX → MD (2 sheets, tables) | 20.4 ms | **1.05 ms** | **19.5x** |
-| PPTX → MD (6 slides: chart, table, picture, groups) | 22.2 ms | **2.00 ms** | **11.1x** |
-| PDF → text (test.pdf, prose) | ~35 ms | ~25 ms | engine-dependent* |
+| CSV → MD (300k rows, 13 MB) | 2199 ms | 348 ms | **6.3x** |
+| HTML → MD (3000 sections + tables + lists, 1.7 MB) | 6002 ms | **297 ms** | **20.2x** |
+| DOCX → MD (AutoGen paper: headings, table, image) | 66 ms | **1.65 ms** | **40x** |
+| XLSX → MD (2 sheets, tables) | 19.4 ms | **0.94 ms** | **20.6x** |
+| PPTX → MD (6 slides: chart, table, picture, groups) | 23.9 ms | **1.33 ms** | **18.0x** |
+| PDF → text (test.pdf, prose)* | ~35 ms | ~25 ms | engine-dependent* |
 
-<sub>Best of N in-process runs on i5-12500H. Reproduce with `examples/bench.rs` + the
-Python converters from the upstream repo.</sub>
+<sub>All five rows measured back-to-back in a single session on i5-12500H (best of N
+in-process). Regenerate with `python plot_bench.py`. *PDF uses a different extraction
+engine — see the PDF section below.</sub>
+
+![Python markitdown vs markitdown-rs benchmark](benchmark.png)
 
 **Why DOCX is 74x:** upstream runs a full `pre_process_docx` (BeautifulSoup XML
 re-serialization) + **mammoth** (docx → HTML) + markdownify. The Rust port parses the
