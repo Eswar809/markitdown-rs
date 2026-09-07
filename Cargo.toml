@@ -9,6 +9,7 @@ license = "MIT"
 csv = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 roxmltree = "0.20"
+pdf-extract = "0.7"
 
 [profile.release]
 opt-level = 3
