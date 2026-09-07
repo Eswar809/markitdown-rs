@@ -1,125 +1,188 @@
-# markitdown-rs ⚡
+# markitdown-rs
 
-**A Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown)** (178k⭐) —
-convert documents into Markdown for LLM and RAG pipelines, at native speed.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://doc.rust-lang.org/cargo/reference/spec.html)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/Eswar809/markitdown-rs/releases)
+[![Parity](https://img.shields.io/badge/parity-54%2F54%20byte--identical-brightgreen.svg)](#performance)
 
-> Status: v0.6 — CSV, plain-text, **HTML**, **DOCX** (OMML math → LaTeX), **XLSX** and
-> **PPTX** (charts, groups, speaker notes) converters, **byte-for-byte parity with Python
-> verified**. PDF converter included at **assertion-level parity** (see PDF section).
+Converts documents — DOCX, XLSX, PPTX, PDF, HTML, CSV — to Markdown at native Rust speed,
+with byte-identical output to the Python original where the format is fully ported.
 
-## Benchmarks — Python vs Rust (single session, in-process, best of N)
+## What is this?
 
-| Case | Python `markitdown` 0.1.8b1 | markitdown-rs | speedup |
+`markitdown-rs` is a Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown),
+the document-to-Markdown converter used to prepare files for LLM and RAG pipelines. It
+reproduces the upstream converters' output on the formats it supports and runs 6–40x
+faster by parsing document formats directly instead of routing through Python libraries.
+It is a plain Rust library with no Python dependency.
+
+## Highlights
+
+- **Byte-identical output** to Python markitdown, verified by a 54-case differential
+  parity suite ([parity.py](parity.py)) plus 25 in-crate unit tests.
+- **6–40x faster** than Python markitdown on equivalent documents (see
+  [Performance](#performance)).
+- **DOCX with equations**: OMML math is converted to LaTeX (`$...$` / `$$...$$`), and
+  all four upstream sample documents convert byte-identically.
+- **PPTX with charts and groups**: slide comments, position-based shape ordering,
+  Python-float chart tables (`2000.0`), and speaker notes.
+- **Faithful semantics**: pandas column naming (`Unnamed: N`, `.N` dedup), markdownify
+  whitespace/escape rules, `javascript:` link removal, autolinks, colspan tables.
+- **Extensible**: register custom converters through the
+  [`DocumentConverter`](#usage) trait with the same priority model as upstream.
+- **No Python required**: the only dependencies are `csv`, `zip`, `roxmltree`, and
+  `pdf-extract`.
+
+## Performance
+
+Lower is better. All rows were measured back-to-back in a single session.
+
+| Document | markitdown (Python) | markitdown-rs (Rust) | Speedup |
 |---|---:|---:|---:|
-| CSV → MD (300k rows, 13 MB) | 2199 ms | 348 ms | **6.3x** |
-| HTML → MD (3000 sections + tables + lists, 1.7 MB) | 6002 ms | **297 ms** | **20.2x** |
-| DOCX → MD (AutoGen paper: headings, table, image) | 66 ms | **1.65 ms** | **40x** |
-| XLSX → MD (2 sheets, tables) | 19.4 ms | **0.94 ms** | **20.6x** |
-| PPTX → MD (6 slides: chart, table, picture, groups) | 23.9 ms | **1.33 ms** | **18.0x** |
-| PDF → text (test.pdf, prose)* | ~35 ms | ~25 ms | engine-dependent* |
+| CSV 13MB (300k rows) | 2199 ms | 348 ms | 6x |
+| HTML 1.7MB (3000 sections) | 6002 ms | 297 ms | 20x |
+| DOCX (AutoGen paper) | 66 ms | 1.65 ms | 40x |
+| XLSX (2 sheets) | 19 ms | 0.94 ms | 21x |
+| PPTX (6 slides, chart+table) | 24 ms | 1.33 ms | 18x |
 
-<sub>All five rows measured back-to-back in a single session on i5-12500H (best of N
-in-process). Regenerate with `python plot_bench.py`. *PDF uses a different extraction
-engine — see the PDF section below.</sub>
+Methodology: i5-12500H, CPython 3.12, markitdown 0.1.8b1 vs markitdown-rs 0.6.0,
+best-of-N in-process runs, single session. See the graph in
+[benchmark.png](benchmark.png). Reproduce:
 
-![Python markitdown vs markitdown-rs benchmark](benchmark.png)
+```bash
+python plot_bench.py
+```
 
-**Why DOCX is 74x:** upstream runs a full `pre_process_docx` (BeautifulSoup XML
-re-serialization) + **mammoth** (docx → HTML) + markdownify. The Rust port parses the
-OOXML parts directly (`roxmltree` + zip), generates the intermediate HTML in one pass —
-including the OMML equation → LaTeX conversion — and feeds the same markdownify pipeline.
-**All four upstream sample documents (including `equations.docx` math) convert
-byte-identically.**
+## Installation
 
-## Why
+The crate is not yet published to crates.io. Install from source:
 
-markitdown is the standard "make any document LLM-ready" tool — but it's pure Python and
-pulls a large dependency tree. This port keeps the exact same output (verified with a
-differential parity suite against the Python implementation) while running faster with a
-single small dependency.
+```bash
+git clone https://github.com/Eswar809/markitdown-rs.git
+cd markitdown-rs
+cargo build --release
+```
 
-## Usage
+Or depend on it directly from a Git repository:
+
+```bash
+cargo add markitdown-rs --git https://github.com/Eswar809/markitdown-rs
+```
+
+Requires Rust 1.75 or newer (`rust-version = "1.75"` in Cargo.toml).
+
+## Quickstart
+
+Convert a file with the debug CLI:
+
+```bash
+cargo run --release --example dump -- report.docx .docx utf-8
+```
+
+Convert in Rust:
 
 ```rust
 use markitdown_rs::MarkItDown;
 
-let result = MarkItDown::new().convert_local("report.csv")?;   // or page.html
-println!("{} ({:?})", result.markdown, result.title);
+let result = MarkItDown::new().convert_local("report.docx")?;
+println!("{}", result.markdown);
 ```
 
-Output is identical to Python markitdown — including markdownify's whitespace/newline
-collapsing, pipe-escaping rules, blank-row trimming, BOM stripping, autolink shortcuts,
-`javascript:` link removal, data-URI truncation, checkbox inputs, colspan tables, the
-ATX heading style, DOCX heading styles (resolved via style NAME), embedded images with
-alt text, OMML equations rendered as `$...$` / `$$...$$` LaTeX, and PPTX slide
-comments with shape-order sorting, chart pipe-tables (`2000.0` float semantics) and
-placeholder picture filenames.
+## Usage
 
-## PDF — assertion-level parity (honest notes)
+### Supported conversions
 
-Upstream extracts PDF text with **pdfminer.six** (with a pdfplumber word-geometry
-borderless-table heuristic before it). Byte-identical output requires porting pdfminer's
-entire text engine (text operators, CMap/ToUnicode decoding, LAParams layout grouping) —
-out of scope here, so the port uses the **pdf-extract** crate (a partial Rust pdfminer
-port). Parity is therefore measured in the upstream test's own style (per-line `rstrip`
-+ ±2 line tolerance):
+| Input | Output | Converter | Parity |
+|---|---|---|---|
+| `.csv` | Markdown table | `CsvConverter` | byte-identical |
+| `.html`, `.htm` | Markdown | `HtmlConverter` | byte-identical |
+| `.docx` | Markdown, OMML math as LaTeX | `DocxConverter` | byte-identical |
+| `.xlsx` | Markdown tables per sheet | `XlsxConverter` | byte-identical |
+| `.pptx` | Markdown per slide | `PptxConverter` | byte-identical |
+| `.pdf` | Extracted text | `PdfConverter` | assertion-level |
+| `.txt`, `.md`, `.json`, ... | Passthrough | `PlainTextConverter` | byte-identical |
 
-| Sample | result |
-|---|---|
-| MEDRPT (scanned, no text layer) | ✅ strict (both empty) |
-| RECEIPT (retail purchase) | CLOSE — same line count, sim 1.00, minor intra-line spacing |
-| test.pdf (prose paper) | CLOSE — sim 1.00, ±1 line (engine merges two header boxes) |
-| REPAIR (multipage) | PARTIAL — pdf-extract line grouping differs (sim 0.58) |
-| SPARSE (borderless table) | PARTIAL — upstream emits pipe tables via its form heuristic (not ported) |
+PDF parity is assertion-level, not byte-level: upstream uses pdfminer.six, this port
+uses the `pdf-extract` crate, so layout spacing can differ. Comparison follows the
+upstream test style (per-line rstrip, ±2 line tolerance). Details in
+[pdf_spec.md](pdf_spec.md).
 
-Upstream's own PDF tests are not byte-exact either: they use substring `must_include`
-checks and per-line-rstrip full-output comparison with a ±2 line tolerance — under those
-rules 4/5 samples pass today (REPAIR/SPARSE need the borderless-table heuristic ported).
+### CLI (debug helper)
 
-## Parity methodology (rustdate playbook)
+`examples/dump.rs` converts a single file through the full converter chain:
 
-- 25 Rust unit tests covering the tricky corners of all converters
-- **Differential parity suite** ([parity.py](parity.py)): 54 inputs (16 CSV + 32 HTML +
-  4 real DOCX documents including the OMML math document + 1 XLSX workbook + 1 PPTX deck
-  with chart/table/picture/groups — all from the upstream test suite) run through both
-  the Python converters (from the upstream repo) and this crate —
-  **all 54 outputs byte-identical**
+| Argument | Required | Meaning |
+|---|---|---|
+| `file` | yes | Path to the input document |
+| `extension` | yes | Extension hint used for converter routing (e.g. `.docx`) |
+| `charset` | no | Text charset, defaults to `utf-8` |
+
+### Library API
+
+Register a custom converter with the upstream priority model
+(lower values are tried first; ties favor later registrations):
+
+```rust
+use markitdown_rs::{DocumentConverter, MarkItDown, PRIORITY_SPECIFIC_FILE_FORMAT};
+
+let mut md = MarkItDown::new();
+md.register(
+    PRIORITY_SPECIFIC_FILE_FORMAT,
+    Box::new(my_crate::MyCustomConverter),
+);
+```
+
+Other public entry points: `convert_stream` (bytes + `StreamInfo` guesses),
+`convert_stream_cursor` (zero-copy over an existing cursor), and
+`DocumentConverterResult { title, markdown }`. Custom converters implement
+`DocumentConverter::name/accepts/convert` over a `Cursor<Vec<u8>>`.
+
+## vs Python markitdown
+
+markitdown-rs produces the same Markdown as Python markitdown on every document in the
+parity suite, including edge cases such as pandas `Unnamed: N` column naming, markdownify
+escape rules, `javascript:` link removal, data-URI truncation, and OMML-to-LaTeX
+conversion. It is 6–40x faster because each format is parsed natively instead of through
+Python document libraries. Formats where the two intentionally differ are listed in the
+README sections for each converter; PDF is the main gap (see
+[pdf_spec.md](pdf_spec.md)). See [Performance](#performance) for measured numbers.
+
+## Feature flags
+
+None. All supported formats are enabled by default.
+
+## Contributing
+
+```bash
+cargo fmt
+cargo clippy -- -D warnings
+cargo test
+python parity.py ../markitdown   # requires the upstream repo cloned next to this one
+```
+
+Please keep `parity.py` green before submitting a converter change: byte-identical
+output is the project's core guarantee.
+
+## License
+
+MIT. See [LICENSE](LICENSE). A port of the MIT-licensed
+[microsoft/markitdown](https://github.com/microsoft/markitdown); conversion semantics
+and design credit belong to the upstream project and the `markdownify` library. Not
+affiliated with Microsoft.
 
 ## Roadmap
 
-- [x] CSV converter (parity ✅)
-- [x] Plain-text passthrough
-- [x] HTML → Markdown (hand-rolled parser + full markdownify port, parity ✅)
-- [x] DOCX → HTML → Markdown (OOXML + style-name headings + tables + images +
-      OMML math → LaTeX, parity ✅ on all upstream samples)
-- [x] XLSX → Markdown (hand-rolled OOXML parse + pandas `to_html`/column-naming
-      semantics — "Unnamed: N" headers, ".N" duplicate suffixes, integral
-      numbers, shared strings, parity ✅)
-- [x] PPTX → Markdown (slide comments, (top,left) shape ordering with -inf
-      quirk, titles, text frames, pictures with sanitized alt + placeholder
-      filenames, table HTML round-trip, charts with Python float str
-      semantics (`2000.0`), group recursion, speaker notes, parity ✅)
-- [~] PDF → text (**assertion-level parity**, see below; byte parity needs a
-      full pdfminer.six port)
-- [ ] PPTX (slides → sections)
-- [ ] PDF (largest upstream converter — via pdfium bindings)
-- [ ] Online converters (YouTube/Wikipedia/Bing) and MCP server — later
+- [ ] XLSX date/number-format handling (dates currently render as raw serials)
+- [ ] PPTX chart types beyond the common set (`[unsupported chart]` fallback)
+- [ ] PDF: port the pdfplumber word-geometry table heuristic
+- [ ] PDF: byte-level parity via a full pdfminer LAParams port
+- [ ] MCP server (`markitdown-mcp` equivalent)
 
-## Dev
+## Acknowledgements
 
-```bash
-cargo test                                   # unit tests
-python parity.py <path-to-markitdown-clone>  # differential parity vs Python
-cargo build --release --example bench
-./target/release/examples/bench.exe big.csv .csv
-```
-
-The upstream repo is expected cloned next to this one (or pass its path to `parity.py`)
-so the Python converters can be imported for comparison.
-
-## License & attribution
-
-MIT. A port of the MIT-licensed
-[microsoft/markitdown](https://github.com/microsoft/markitdown) — all credit for the
-design and conversion semantics belongs to the upstream project (and to the `markdownify`
-library). Not affiliated with Microsoft.
+- [microsoft/markitdown](https://github.com/microsoft/markitdown) — design and
+  conversion semantics.
+- [markdownify](https://github.com/matthewwithanm/python-markdownify) — the HTML to
+  Markdown rules ported into `markdownify.rs`.
+- [dwml](https://github.com/xiilei/dwml) — the OMML to LaTeX logic adapted by upstream's
+  `math/omml.py`, ported here as `docx_math.rs`.
