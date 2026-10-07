@@ -13,17 +13,6 @@ use std::collections::HashSet;
 
 use super::parser::{Dom, NodeKind};
 
-pub struct Options;
-
-impl Options {
-    pub fn escape_asterisks(&self) -> bool {
-        true
-    }
-    pub fn escape_underscores(&self) -> bool {
-        true
-    }
-}
-
 const BULLETS: [&str; 3] = ["*", "+", "-"];
 
 pub fn convert(dom: &Dom, root: usize) -> String {
@@ -99,17 +88,10 @@ fn can_ignore_child(
         NodeKind::Comment => true,
         NodeKind::Document => true,
         NodeKind::Text(t) => {
-            if !t.trim().is_empty() {
-                false
-            } else if should_remove_inside && (prev.is_none() || next.is_none()) {
-                true
-            } else if should_remove_whitespace_outside_node(dom, prev)
-                || should_remove_whitespace_outside_node(dom, next)
-            {
-                true
-            } else {
-                false
-            }
+            t.trim().is_empty()
+                && (should_remove_inside && (prev.is_none() || next.is_none())
+                    || should_remove_whitespace_outside_node(dom, prev)
+                    || should_remove_whitespace_outside_node(dom, next))
         }
     }
 }
@@ -447,11 +429,6 @@ fn convert_code(text: &str, parent_tags: &HashSet<String>) -> String {
     if text.is_empty() {
         return String::new();
     }
-    let max_backticks = text
-        .split('`')
-        .map(|seg| seg.len()) // not used; see run computation below
-        .count();
-    let _ = max_backticks;
     // longest run of consecutive backticks
     let mut max_run = 0usize;
     let mut run = 0usize;
@@ -546,7 +523,7 @@ fn convert_hn(n: usize, text: &str, parent_tags: &HashSet<String>) -> String {
     format!("\n\n{} {}\n\n", "#".repeat(n), text) // heading_style = ATX
 }
 
-fn convert_li(dom: &Dom, idx: usize, text: &str, parent_tags: &HashSet<String>) -> String {
+fn convert_li(dom: &Dom, idx: usize, text: &str, _parent_tags: &HashSet<String>) -> String {
     let text = text.trim();
     if text.is_empty() {
         return "\n".to_string();
@@ -749,9 +726,7 @@ fn parse_url(s: &str) -> UrlParts {
         }
     }
     let (netloc, rest) = if let Some(r) = rest.strip_prefix("//") {
-        let end = r
-            .find(|c: char| c == '/' || c == '?' || c == '#')
-            .unwrap_or(r.len());
+        let end = r.find(['/', '?', '#']).unwrap_or(r.len());
         (r[..end].to_string(), &r[end..])
     } else {
         (String::new(), rest)

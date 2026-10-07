@@ -7,7 +7,7 @@
 //! then feeds the HTML through the same in-crate markdownify pipeline.
 
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read};
 
 use super::super::converter::{
     ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
@@ -22,7 +22,6 @@ use super::docx_math::M_NS;
 const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const WP_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
-const A_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
 pub struct DocxConverter;
 
@@ -132,18 +131,6 @@ impl<'a> DocxContext<'a> {
         f.read_to_end(&mut buf).ok()?;
         Some(buf)
     }
-}
-
-/// Runs a closure over the parsed XML of a zip member.
-fn with_xml<T>(
-    ctx: &mut DocxContext,
-    name: &str,
-    f: impl FnOnce(&roxmltree::Document) -> Option<T>,
-) -> Option<T> {
-    let bytes = ctx.read_zip_file(name)?;
-    let text = String::from_utf8_lossy(&bytes);
-    let tree = roxmltree::Document::parse(&text).ok()?;
-    f(&tree)
 }
 
 fn style_heading_level(ctx: &DocxContext, style_id: &str) -> Option<usize> {
@@ -257,8 +244,7 @@ fn render_content(dom: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
             }
             match target {
                 Some(t) if !t.is_empty() => {
-                    let href = if t.starts_with("http") { t } else { t };
-                    out.push_str(&format!("<a href=\"{}\">{}</a>", html_escape(&href), inner));
+                    out.push_str(&format!("<a href=\"{}\">{}</a>", html_escape(&t), inner));
                 }
                 _ => out.push_str(&inner),
             }
@@ -309,16 +295,6 @@ fn render_image(node: roxmltree::Node, ctx: &mut DocxContext, out: &mut String) 
         html_escape(&alt),
         mime
     ));
-}
-
-fn collect_text(node: roxmltree::Node) -> String {
-    let mut out = String::new();
-    for d in node.descendants() {
-        if is_el(d, W_NS, "t") {
-            out.push_str(d.text().unwrap_or(""));
-        }
-    }
-    out
 }
 
 /// Renders a w:p (paragraph) — headings are resolved via the style NAME.

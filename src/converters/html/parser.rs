@@ -58,13 +58,6 @@ impl Dom {
         }
     }
 
-    pub fn text(&self, idx: usize) -> Option<&str> {
-        match &self.nodes[idx].kind {
-            NodeKind::Text(t) => Some(t),
-            _ => None,
-        }
-    }
-
     /// First ancestor (parent chain) whose tag equals `name` — equivalent of
     /// BeautifulSoup's `el.find_parent(name)`.
     pub fn find_parent(&self, idx: usize, name: &str) -> bool {
@@ -142,12 +135,6 @@ impl Dom {
             .iter()
             .filter(|&&s| self.name(s) == Some(name))
             .count()
-    }
-
-    /// Whether the node has any previous sibling of ANY kind (raw chain) —
-    /// port of `el.find_previous_sibling() is None`.
-    pub fn has_prev_sibling_raw(&self, idx: usize) -> bool {
-        self.prev_sibling(idx).is_some()
     }
 }
 

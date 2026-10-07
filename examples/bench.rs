@@ -3,7 +3,7 @@
 
 use std::io::Cursor;
 
-use markitdown_rs::{DocumentConverter, MarkItDown, StreamInfo};
+use markitdown_rs::{MarkItDown, StreamInfo};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -22,7 +22,7 @@ fn main() {
         cursor.set_position(0);
         let t = std::time::Instant::now();
         let res = md
-            .convert_stream_cursor(&mut cursor, &[info.clone()])
+            .convert_stream_cursor(&mut cursor, std::slice::from_ref(&info))
             .expect("convert failed");
         sink = sink.max(res.markdown.len());
         let d = t.elapsed().as_secs_f64();

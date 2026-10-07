@@ -103,7 +103,7 @@ impl MarkItDown {
     /// rewound before each converter attempt).
     pub fn convert_stream_cursor(
         &self,
-        mut cursor: &mut Cursor<Vec<u8>>,
+        cursor: &mut Cursor<Vec<u8>>,
         guesses: &[StreamInfo],
     ) -> Result<DocumentConverterResult, MarkitdownError> {
         let mut registrations = self.converters.iter().collect::<Vec<_>>();
@@ -128,10 +128,10 @@ impl MarkItDown {
             for reg in &registrations {
                 cursor.seek(SeekFrom::Start(0)).ok();
 
-                let accepts = reg.converter.accepts(&mut cursor, stream_info);
+                let accepts = reg.converter.accepts(cursor, stream_info);
                 if accepts {
                     cursor.seek(SeekFrom::Start(0)).ok();
-                    match reg.converter.convert(&mut cursor, stream_info) {
+                    match reg.converter.convert(cursor, stream_info) {
                         Ok(result) => return Ok(result),
                         Err(e) => attempts.push(FailedConversionAttempt {
                             converter_name: reg.name.clone(),

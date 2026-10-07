@@ -86,10 +86,6 @@ fn picture_filename(name: &str) -> String {
     format!("{}.jpg", kept)
 }
 
-struct SlidePart {
-    path: String,
-}
-
 struct PptxContext {
     archive: zip::ZipArchive<Cursor<Vec<u8>>>,
     // per-part relationship maps: "ppt/slides/_rels/slide1.xml.rels" → {rId → target}
@@ -211,7 +207,7 @@ fn sort_key(dom: &roxmltree::Document, node: roxmltree::Node) -> (f64, f64) {
     }
 }
 
-fn cNvPr<'a, 'input>(node: roxmltree::Node<'a, 'input>) -> Option<roxmltree::Node<'a, 'input>> {
+fn c_nv_pr<'a, 'input>(node: roxmltree::Node<'a, 'input>) -> Option<roxmltree::Node<'a, 'input>> {
     // p:nvSpPr | p:nvPicPr | p:nvGraphicFramePr | p:nvGrpSpPr → p:cNvPr
     node.children()
         .find(|&c| c.tag_name().namespace() == Some(P_NS) && c.tag_name().name().starts_with("nv"))
@@ -288,8 +284,8 @@ impl<'input, 'a> PptxCtx<'input, 'a> {
         let target = rels.get(rid)?.clone();
         let base_dir = base_part.rfind('/').map(|p| &base_part[..p]).unwrap_or("");
         // resolve "../" segments relative to the base part's directory
-        let mut parts: Vec<&str> = if target.starts_with('/') {
-            return Some(target[1..].to_string());
+        let mut parts: Vec<&str> = if let Some(abs) = target.strip_prefix('/') {
+            return Some(abs.to_string());
         } else if base_dir.is_empty() {
             vec![]
         } else {
@@ -349,8 +345,8 @@ fn emit_shape(node: roxmltree::Node, c: &mut PptxCtx, md: &mut String) {
     }
 }
 
-fn emit_picture(node: roxmltree::Node, c: &mut PptxCtx, md: &mut String) {
-    let cnvpr = cNvPr(node);
+fn emit_picture(node: roxmltree::Node, _c: &mut PptxCtx, md: &mut String) {
+    let cnvpr = c_nv_pr(node);
     let alt_text = cnvpr
         .as_ref()
         .and_then(|n| n.attribute("descr"))
@@ -406,7 +402,8 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
             .descendants()
             .find(|&d| d.tag_name().name() == "chart")
             .and_then(|d| d.attribute((R_NS, "id")))?;
-        let chart_part = c.resolve_rel_target(&c.slide_part.clone(), &rid)?;
+        let slide_part = c.slide_part.clone();
+        let chart_part = c.resolve_rel_target(&slide_part, rid)?;
         let xml = c.ctx.read_part(&chart_part)?;
         let tree = roxmltree::Document::parse(&xml).ok()?;
         let chart = tree.descendants().find(|&d| is_el(d, C_NS, "chart"))?;
@@ -516,7 +513,7 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
                         let raw = v.text().unwrap_or("");
                         let rendered = raw
                             .parse::<f64>()
-                            .map(|f| python_float_str(f))
+                            .map(python_float_str)
                             .unwrap_or_else(|_| raw.to_string());
                         values.insert(idx, rendered);
                     } else {
@@ -537,7 +534,7 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
         let cats = categories.unwrap_or_default();
         let row_count = cats
             .len()
-            .max(series_values.iter().map(|v| v.len()).sum::<usize>().max(0));
+            .max(series_values.iter().map(Vec::len).sum::<usize>());
 
         let mut header: Vec<String> = vec!["Category".to_string()];
         header.extend(series_names);

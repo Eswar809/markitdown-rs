@@ -9,10 +9,10 @@ use super::super::converter::{
 const ACCEPTED_MIME_TYPE_PREFIXES: [&str; 2] = ["text/csv", "application/csv"];
 const ACCEPTED_FILE_EXTENSIONS: [&str; 1] = [".csv"];
 
-/// Streaming version of [`escape_table_cell`] — writes the escaped cell
-/// directly into `out` without an intermediate allocation. Handles pipe
-/// escaping (with backslash-run doubling) and newline collapsing (\r\n -> " ")
-/// in one pass, matching Python's two sequential transforms.
+/// Streaming cell escaper — writes the escaped cell directly into `out`
+/// without an intermediate allocation. Handles pipe escaping (with
+/// backslash-run doubling) and newline collapsing (\r\n -> " ") in one pass,
+/// matching Python's two sequential transforms.
 fn push_escaped(out: &mut String, value: &str) {
     let mut backslashes = 0usize;
     let mut after_cr = false;
@@ -62,26 +62,6 @@ fn push_escaped(out: &mut String, value: &str) {
     for _ in 0..backslashes {
         out.push('\\');
     }
-}
-
-/// Escapes newlines only (cells already pipe-escaped) — the tail of Python's
-/// `_escape_table_cell`.
-fn collapse_newlines(value: String) -> String {
-    value
-        .replace("\r\n", " ")
-        .replace('\n', " ")
-        .replace('\r', " ")
-}
-
-/// Escapes a cell so it is safe inside a Markdown table cell.
-pub fn escape_table_cell(value: &str) -> String {
-    collapse_newlines(push_escaped_into(value))
-}
-
-fn push_escaped_into(value: &str) -> String {
-    let mut out = String::with_capacity(value.len() + 8);
-    push_escaped(&mut out, value);
-    out
 }
 
 /// Remove empty rows from the beginning and end, and immediately after the
@@ -217,6 +197,25 @@ mod tests {
             .convert(&mut Cursor::new(input.as_bytes().to_vec()), &info)
             .unwrap()
             .markdown
+    }
+
+    /// Test-only mirrors of Python's two sequential cell transforms
+    /// (pipe-escape, then newline-collapse), kept to pin the escaping
+    /// semantics directly. Production rows use the equivalent single-pass
+    /// `push_escaped` above.
+    fn collapse_newlines(value: String) -> String {
+        value.replace("\r\n", " ").replace(['\n', '\r'], " ")
+    }
+
+    /// Escapes a cell so it is safe inside a Markdown table cell.
+    fn escape_table_cell(value: &str) -> String {
+        collapse_newlines(push_escaped_into(value))
+    }
+
+    fn push_escaped_into(value: &str) -> String {
+        let mut out = String::with_capacity(value.len() + 8);
+        push_escaped(&mut out, value);
+        out
     }
 
     #[test]

@@ -10,7 +10,7 @@
 //! level instead (per-line rstrip + substring includes — the upstream suite
 //! itself never compares PDF output byte-for-byte).
 
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
 use super::super::converter::{
     ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
