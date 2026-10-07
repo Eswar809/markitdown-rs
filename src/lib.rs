@@ -21,7 +21,10 @@ pub use converter::{
     DocumentConverter, DocumentConverterResult, FailedConversionAttempt, MarkitdownError,
     StreamInfo, PRIORITY_GENERIC_FILE_FORMAT, PRIORITY_SPECIFIC_FILE_FORMAT,
 };
-pub use converters::{CsvConverter, DocxConverter, HtmlConverter, PdfConverter, PlainTextConverter, PptxConverter, XlsxConverter};
+pub use converters::{
+    CsvConverter, DocxConverter, HtmlConverter, PdfConverter, PlainTextConverter, PptxConverter,
+    XlsxConverter,
+};
 
 struct Registration {
     priority: f64,
@@ -60,10 +63,7 @@ impl MarkItDown {
         // register_converter inserts at index 0, so among equal priorities the
         // LATEST registration is tried first (HtmlConverter beats
         // PlainTextConverter); the sort below reproduces that.
-        md.register(
-            PRIORITY_GENERIC_FILE_FORMAT,
-            Box::new(PlainTextConverter),
-        );
+        md.register(PRIORITY_GENERIC_FILE_FORMAT, Box::new(PlainTextConverter));
         md.register(PRIORITY_GENERIC_FILE_FORMAT, Box::new(HtmlConverter));
         // specific formats — same set/order as upstream's builtin registration
         md.register(PRIORITY_SPECIFIC_FILE_FORMAT, Box::new(DocxConverter));
@@ -103,7 +103,7 @@ impl MarkItDown {
     /// rewound before each converter attempt).
     pub fn convert_stream_cursor(
         &self,
-        mut cursor: &mut Cursor<Vec<u8>>,
+        cursor: &mut Cursor<Vec<u8>>,
         guesses: &[StreamInfo],
     ) -> Result<DocumentConverterResult, MarkitdownError> {
         let mut registrations = self.converters.iter().collect::<Vec<_>>();
@@ -128,10 +128,10 @@ impl MarkItDown {
             for reg in &registrations {
                 cursor.seek(SeekFrom::Start(0)).ok();
 
-                let accepts = reg.converter.accepts(&mut cursor, stream_info);
+                let accepts = reg.converter.accepts(cursor, stream_info);
                 if accepts {
                     cursor.seek(SeekFrom::Start(0)).ok();
-                    match reg.converter.convert(&mut cursor, stream_info) {
+                    match reg.converter.convert(cursor, stream_info) {
                         Ok(result) => return Ok(result),
                         Err(e) => attempts.push(FailedConversionAttempt {
                             converter_name: reg.name.clone(),
@@ -155,7 +155,10 @@ impl MarkItDown {
     /// Converts a local file, guessing mimetype/extension from the path —
     /// port of `convert_local` (v1: extension-based mime guessing, no
     /// Magika-style content sniffing yet).
-    pub fn convert_local(&self, path: impl AsRef<Path>) -> Result<DocumentConverterResult, MarkitdownError> {
+    pub fn convert_local(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<DocumentConverterResult, MarkitdownError> {
         let path = path.as_ref();
         let data = std::fs::read(path).map_err(|e| MarkitdownError {
             message: format!("failed to read {}: {}", path.display(), e),
@@ -208,7 +211,10 @@ mod tests {
         std::fs::write(&path, b"name,age\nalice,30").unwrap();
 
         let result = MarkItDown::new().convert_local(&path).unwrap();
-        assert_eq!(result.markdown, "| name | age |\n| --- | --- |\n| alice | 30 |");
+        assert_eq!(
+            result.markdown,
+            "| name | age |\n| --- | --- |\n| alice | 30 |"
+        );
     }
 
     #[test]

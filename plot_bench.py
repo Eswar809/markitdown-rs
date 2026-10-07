@@ -1,15 +1,17 @@
 """Generate benchmark.png — Python markitdown vs markitdown-rs across all
 converted formats, measured fresh in one session for consistency.
 
-Run from the repo root:  python plot_bench.py
+Run from the repo root:
+    python gen_bench_inputs.py   # deterministic inputs (fixed seed)
+    python plot_bench.py
 Requires: the upstream markitdown clone at ../markitdown (for the Python
 converters) and cargo-built examples (bench.exe).
 """
 import io
-import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import warnings
 
@@ -34,26 +36,13 @@ def make_cases():
     big_html = open(os.path.join(HERE, "big.html"), encoding="utf-8").read()
 
     return [
-        ("CSV 13MB (300k rows)", big_csv, ".csv", CsvConverter()),
-        ("HTML 1.7MB (3000 sections)", big_html.encode("utf-8"), ".html", HtmlConverter()),
-        ("DOCX (AutoGen paper)", open(os.path.join(HERE, "tests/fixtures/test.docx"), "rb").read(), ".docx", DocxConverter()),
+        ("CSV 11.8MB (300k rows)", big_csv, ".csv", CsvConverter()),
+        ("HTML 2.8MB (3000 sections)", big_html.encode("utf-8"), ".html", HtmlConverter()),
+        ("DOCX (upstream test.docx)", open(os.path.join(HERE, "tests/fixtures/test.docx"), "rb").read(), ".docx", DocxConverter()),
         ("XLSX (2 sheets)", open(os.path.join(HERE, "tests/fixtures/test.xlsx"), "rb").read(), ".xlsx", XlsxConverter()),
         ("PPTX (6 slides, chart+table)", open(os.path.join(HERE, "tests/fixtures/test.pptx"), "rb").read(), ".pptx", PptxConverter()),
     ]
 
-
-def best_us_py(data, conv, runs):
-    best = float("inf")
-    for _ in range(runs):
-        t0 = time.perf_counter()
-        conv.convert(io.BytesIO(data), StreamInfo(extension=EXT, charset="utf-8"))
-        best = min(best, time.perf_counter() - t0)
-    return best / 1e-3  # ms
-
-
-import io
-import time
-from markitdown._stream_info import StreamInfo
 
 def measure():
     rows = []
@@ -68,10 +57,12 @@ def measure():
         py_ms = best_py * 1000
 
         # rust: bench.exe loops 10x in-process, prints best ms
-        path = os.path.join(HERE, "target", "parity", "bench_input" + ext)
+        path = os.path.join(tempfile.gettempdir(), "mdrs-bench-input" + ext)
         with open(path, "wb") as f:
             f.write(data)
         out = subprocess.run([BENCH_EXE, path, ext], capture_output=True, text=True)
+        if out.returncode != 0:
+            raise RuntimeError(f"bench.exe failed for {label}: {out.stderr.strip()}")
         rs_ms = float(out.stdout.strip().splitlines()[-1])
         rows.append((label, py_ms, rs_ms))
         print(f"  {label:32s} python={py_ms:8.1f} ms  rust={rs_ms:8.2f} ms  {py_ms/rs_ms:6.1f}x")

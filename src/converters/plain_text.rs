@@ -9,8 +9,10 @@ use super::super::converter::{
     ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
 };
 
-const ACCEPTED_MIME_TYPE_PREFIXES: [&str; 3] = ["text/", "application/json", "application/markdown"];
-const ACCEPTED_FILE_EXTENSIONS: [&str; 6] = [".txt", ".text", ".md", ".markdown", ".json", ".jsonl"];
+const ACCEPTED_MIME_TYPE_PREFIXES: [&str; 3] =
+    ["text/", "application/json", "application/markdown"];
+const ACCEPTED_FILE_EXTENSIONS: [&str; 6] =
+    [".txt", ".text", ".md", ".markdown", ".json", ".jsonl"];
 
 pub struct PlainTextConverter;
 
@@ -31,7 +33,11 @@ impl DocumentConverter for PlainTextConverter {
             return true;
         }
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -73,7 +79,10 @@ mod tests {
             ..Default::default()
         };
         let res = PlainTextConverter
-            .convert(&mut Cursor::new("# Hello\nworld".as_bytes().to_vec()), &info)
+            .convert(
+                &mut Cursor::new("# Hello\nworld".as_bytes().to_vec()),
+                &info,
+            )
             .unwrap();
         assert_eq!(res.markdown, "# Hello\nworld");
         assert_eq!(res.title, None);

@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://doc.rust-lang.org/cargo/reference/spec.html)
 [![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/Eswar809/markitdown-rs/releases)
+[![CI](https://github.com/Eswar809/markitdown-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Eswar809/markitdown-rs/actions/workflows/ci.yml)
 [![Parity](https://img.shields.io/badge/parity-54%2F54%20byte--identical-brightgreen.svg)](#performance)
 
 Converts documents — DOCX, XLSX, PPTX, PDF, HTML, CSV — to Markdown at native Rust speed,
@@ -12,7 +13,7 @@ with byte-identical output to the Python original where the format is fully port
 
 `markitdown-rs` is a Rust port of [microsoft/markitdown](https://github.com/microsoft/markitdown),
 the document-to-Markdown converter used to prepare files for LLM and RAG pipelines. It
-reproduces the upstream converters' output on the formats it supports and runs 6–40x
+reproduces the upstream converters' output on the formats it supports and runs 6–43x
 faster by parsing document formats directly instead of routing through Python libraries.
 It is a plain Rust library with no Python dependency.
 
@@ -20,7 +21,7 @@ It is a plain Rust library with no Python dependency.
 
 - **Byte-identical output** to Python markitdown, verified by a 54-case differential
   parity suite ([parity.py](parity.py)) plus 25 in-crate unit tests.
-- **6–40x faster** than Python markitdown on equivalent documents (see
+- **6–43x faster** than Python markitdown on equivalent documents (see
   [Performance](#performance)).
 - **DOCX with equations**: OMML math is converted to LaTeX (`$...$` / `$$...$$`), and
   all four upstream sample documents convert byte-identically.
@@ -39,16 +40,20 @@ Lower is better. All rows were measured back-to-back in a single session.
 
 | Document | markitdown (Python) | markitdown-rs (Rust) | Speedup |
 |---|---:|---:|---:|
-| CSV 13MB (300k rows) | 2199 ms | 348 ms | 6x |
-| HTML 1.7MB (3000 sections) | 6002 ms | 297 ms | 20x |
-| DOCX (AutoGen paper) | 66 ms | 1.65 ms | 40x |
-| XLSX (2 sheets) | 19 ms | 0.94 ms | 21x |
-| PPTX (6 slides, chart+table) | 24 ms | 1.33 ms | 18x |
+| CSV 11.8MB (300k rows) | 1792 ms | 317 ms | 6x |
+| HTML 2.8MB (3000 sections) | 9451 ms | 262 ms | 36x |
+| DOCX (upstream test.docx) | 35.0 ms | 0.82 ms | 43x |
+| XLSX (2 sheets) | 10.2 ms | 0.60 ms | 17x |
+| PPTX (6 slides, chart+table) | 13.1 ms | 0.77 ms | 17x |
 
-Methodology: i5-12500H, CPython 3.12, markitdown 0.1.8b1 vs markitdown-rs 0.6.0,
-best-of-N in-process runs, single session. Reproduce:
+Methodology: i5-12500H, CPython 3.12.10, markitdown 0.1.8b1 vs markitdown-rs 0.6.0,
+best-of-N in-process runs (Python best-of-3/5, Rust best-of-10), measured 2026-10-07
+in a single session. Dataset: deterministic inputs from `gen_bench_inputs.py`
+(fixed seed; 300k-row CSV, 3000-section HTML) plus the upstream fixture files.
+Reproduce:
 
 ```bash
+python gen_bench_inputs.py
 python plot_bench.py
 ```
 
@@ -143,7 +148,7 @@ Other public entry points: `convert_stream` (bytes + `StreamInfo` guesses),
 markitdown-rs produces the same Markdown as Python markitdown on every document in the
 parity suite, including edge cases such as pandas `Unnamed: N` column naming, markdownify
 escape rules, `javascript:` link removal, data-URI truncation, and OMML-to-LaTeX
-conversion. It is 6–40x faster because each format is parsed natively instead of through
+conversion. It is 6–43x faster because each format is parsed natively instead of through
 Python document libraries. Formats where the two intentionally differ are listed in the
 README sections for each converter; PDF is the main gap (see
 [pdf_spec.md](pdf_spec.md)). See [Performance](#performance) for measured numbers.
@@ -151,6 +156,26 @@ README sections for each converter; PDF is the main gap (see
 ## Feature flags
 
 None. All supported formats are enabled by default.
+
+## Development
+
+```bash
+cargo build --release                                # optimized library + helpers
+cargo fmt --all -- --check                           # formatting gate (CI: fmt)
+cargo clippy --all-targets -- -D warnings           # lint gate (CI: clippy)
+cargo test                                           # 25 unit tests + doc-test (debug)
+cargo test --release                                 # same, optimized
+python gen_bench_inputs.py                           # deterministic bench inputs (fixed seed)
+python parity.py ../markitdown                       # 54-case byte-identical suite vs upstream
+python plot_bench.py                                 # re-measure + redraw benchmark.png
+```
+
+The parity suite needs the upstream repo next to this one at the pinned
+baseline (`git clone --branch v0.1.8b1 https://github.com/microsoft/markitdown.git`),
+plus the Python converter deps (`mammoth`, `pandas`, `openpyxl`, `python-pptx`,
+`pdfminer.six`, `pdfplumber`, `beautifulsoup4`, `markdownify`, `charset-normalizer`,
+`magika`, `defusedxml`, `requests`, `lxml`). PDF is assertion-level, not byte-level
+(see [pdf_spec.md](pdf_spec.md)).
 
 ## Contributing
 

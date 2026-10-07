@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: dump
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: dump.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: dump
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Build optimized release binary
+        run: cargo build --release --example dump --target ${{ matrix.target }}
+
+      - name: Stage binary + SHA256 checksum
+        shell: bash
+        run: |
+          mkdir -p dist
+          src="target/${{ matrix.target }}/release/examples/${{ matrix.bin }}"
+          dst="dist/markitdown-rs-${{ github.ref_name }}-${{ matrix.target }}-${{ matrix.bin }}"
+          cp "$src" "$dst"
+          (cd dist && sha256sum "$(basename "$dst")" > "$(basename "$dst").sha256")
+
+      - name: Upload staged artifacts
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: markitdown-rs-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download staged artifacts
+        uses: actions/download-artifact@v7.0.0
+        with:
+          pattern: markitdown-rs-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish binaries + checksums
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  # publish-crates-io (DISABLED — TODO):
+  #   The crate is not published to crates.io yet. When the API is stable,
+  #   enable this job with a `crates.io` token in secrets.CARGO_REGISTRY_TOKEN:
+  #     cargo publish --dry-run && cargo publish
+  # publish-crates-io:
+  #   name: publish to crates.io
+  #   needs: [release]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v7.0.1
+  #     - uses: dtolnay/rust-toolchain@1.99.0
+  #     - name: Dry-run publish
+  #       run: cargo publish --dry-run
+  #     - name: Publish
+  #       run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

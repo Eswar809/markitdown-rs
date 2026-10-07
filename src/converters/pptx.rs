@@ -12,8 +12,7 @@ use super::super::converter::{
     ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
 };
 
-const ACCEPTED_MIME_PREFIX: &str =
-    "application/vnd.openxmlformats-officedocument.presentationml";
+const ACCEPTED_MIME_PREFIX: &str = "application/vnd.openxmlformats-officedocument.presentationml";
 const ACCEPTED_FILE_EXTENSIONS: [&str; 1] = [".pptx"];
 
 const P_NS: &str = "http://schemas.openxmlformats.org/presentationml/2006/main";
@@ -85,10 +84,6 @@ fn picture_filename(name: &str) -> String {
         .filter(|&c| c.is_alphanumeric() || c == '_')
         .collect();
     format!("{}.jpg", kept)
-}
-
-struct SlidePart {
-    path: String,
 }
 
 struct PptxContext {
@@ -181,9 +176,7 @@ fn shape_offset(dom: &roxmltree::Document, node: roxmltree::Node) -> Option<(i64
     // sp/pic: p:spPr/a:xfrm/a:off ; graphicFrame: p:xfrm/a:off ; grpSp: p:grpSpPr/a:xfrm/a:off
     let xfrm = node
         .children()
-        .find(|&c| {
-            is_el(c, P_NS, "spPr") || is_el(c, P_NS, "xfrm") || is_el(c, P_NS, "grpSpPr")
-        })
+        .find(|&c| is_el(c, P_NS, "spPr") || is_el(c, P_NS, "xfrm") || is_el(c, P_NS, "grpSpPr"))
         .and_then(|prop| {
             prop.children()
                 .find(|&x| is_el(x, A_NS, "xfrm") || is_el(x, P_NS, "xfrm"))
@@ -199,20 +192,25 @@ fn shape_offset(dom: &roxmltree::Document, node: roxmltree::Node) -> Option<(i64
 fn sort_key(dom: &roxmltree::Document, node: roxmltree::Node) -> (f64, f64) {
     match shape_offset(dom, node) {
         Some((top, left)) => (
-            if top == 0 { f64::NEG_INFINITY } else { top as f64 },
-            if left == 0 { f64::NEG_INFINITY } else { left as f64 },
+            if top == 0 {
+                f64::NEG_INFINITY
+            } else {
+                top as f64
+            },
+            if left == 0 {
+                f64::NEG_INFINITY
+            } else {
+                left as f64
+            },
         ),
         None => (f64::NEG_INFINITY, f64::NEG_INFINITY),
     }
 }
 
-fn cNvPr<'a, 'input>(node: roxmltree::Node<'a, 'input>) -> Option<roxmltree::Node<'a, 'input>> {
+fn c_nv_pr<'a, 'input>(node: roxmltree::Node<'a, 'input>) -> Option<roxmltree::Node<'a, 'input>> {
     // p:nvSpPr | p:nvPicPr | p:nvGraphicFramePr | p:nvGrpSpPr → p:cNvPr
     node.children()
-        .find(|&c| {
-            c.tag_name().namespace() == Some(P_NS)
-                && c.tag_name().name().starts_with("nv")
-        })
+        .find(|&c| c.tag_name().namespace() == Some(P_NS) && c.tag_name().name().starts_with("nv"))
         .and_then(|nv| nv.children().find(|&c| is_el(c, P_NS, "cNvPr")))
 }
 
@@ -228,7 +226,9 @@ fn has_ph_idx_zero(node: roxmltree::Node) -> bool {
         .unwrap_or(false)
 }
 
-fn shape_children<'a, 'input>(sp_tree: roxmltree::Node<'a, 'input>) -> Vec<roxmltree::Node<'a, 'input>> {
+fn shape_children<'a, 'input>(
+    sp_tree: roxmltree::Node<'a, 'input>,
+) -> Vec<roxmltree::Node<'a, 'input>> {
     sp_tree
         .children()
         .filter(|&c| {
@@ -284,8 +284,8 @@ impl<'input, 'a> PptxCtx<'input, 'a> {
         let target = rels.get(rid)?.clone();
         let base_dir = base_part.rfind('/').map(|p| &base_part[..p]).unwrap_or("");
         // resolve "../" segments relative to the base part's directory
-        let mut parts: Vec<&str> = if target.starts_with('/') {
-            return Some(target[1..].to_string());
+        let mut parts: Vec<&str> = if let Some(abs) = target.strip_prefix('/') {
+            return Some(abs.to_string());
         } else if base_dir.is_empty() {
             vec![]
         } else {
@@ -315,10 +315,7 @@ fn emit_shape(node: roxmltree::Node, c: &mut PptxCtx, md: &mut String) {
     if is_el(node, P_NS, "graphicFrame") {
         if let Some(tbl) = node.descendants().find(|&d| is_el(d, A_NS, "tbl")) {
             emit_table(tbl, md);
-        } else if let Some(graphic) = node
-            .descendants()
-            .find(|&d| is_el(d, A_NS, "graphicData"))
-        {
+        } else if let Some(graphic) = node.descendants().find(|&d| is_el(d, A_NS, "graphicData")) {
             if graphic.attribute("uri").map(|u| u.contains("chart")) == Some(true) {
                 is_chart_frame = true;
                 let chart_md = emit_chart(node, c);
@@ -348,8 +345,8 @@ fn emit_shape(node: roxmltree::Node, c: &mut PptxCtx, md: &mut String) {
     }
 }
 
-fn emit_picture(node: roxmltree::Node, c: &mut PptxCtx, md: &mut String) {
-    let cnvpr = cNvPr(node);
+fn emit_picture(node: roxmltree::Node, _c: &mut PptxCtx, md: &mut String) {
+    let cnvpr = c_nv_pr(node);
     let alt_text = cnvpr
         .as_ref()
         .and_then(|n| n.attribute("descr"))
@@ -381,13 +378,12 @@ fn emit_table(tbl: roxmltree::Node, md: &mut String) {
                 .find(|&c| is_el(c, A_NS, "txBody"))
                 .map(text_frame_text)
                 .unwrap_or_default();
-            let (open, close) = if first_row { ("<th>", "</th>") } else { ("<td>", "</td>") };
-            html.push_str(&format!(
-                "{}{}{}",
-                open,
-                html_escape_cell(&text),
-                close
-            ));
+            let (open, close) = if first_row {
+                ("<th>", "</th>")
+            } else {
+                ("<td>", "</td>")
+            };
+            html.push_str(&format!("{}{}{}", open, html_escape_cell(&text), close));
         }
         html.push_str("</tr>");
         first_row = false;
@@ -406,12 +402,11 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
             .descendants()
             .find(|&d| d.tag_name().name() == "chart")
             .and_then(|d| d.attribute((R_NS, "id")))?;
-        let chart_part = c.resolve_rel_target(&c.slide_part.clone(), &rid)?;
+        let slide_part = c.slide_part.clone();
+        let chart_part = c.resolve_rel_target(&slide_part, rid)?;
         let xml = c.ctx.read_part(&chart_part)?;
         let tree = roxmltree::Document::parse(&xml).ok()?;
-        let chart = tree
-            .descendants()
-            .find(|&d| is_el(d, C_NS, "chart"))?;
+        let chart = tree.descendants().find(|&d| is_el(d, C_NS, "chart"))?;
 
         let mut md = String::from("\n\n### Chart");
         // title
@@ -441,24 +436,22 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
 
         // plot area series + categories
         let plot = chart.children().find(|&d| is_el(d, C_NS, "plotArea"))?;
-        let plot_type = plot
-            .children()
-            .find(|&d| {
-                d.is_element()
-                    && d.tag_name().namespace() == Some(C_NS)
-                    && matches!(
-                        d.tag_name().name(),
-                        "barChart"
-                            | "lineChart"
-                            | "areaChart"
-                            | "pieChart"
-                            | "doughnutChart"
-                            | "scatterChart"
-                            | "radarChart"
-                            | "surfaceChart"
-                            | "bubbleChart"
-                    )
-            })?;
+        let plot_type = plot.children().find(|&d| {
+            d.is_element()
+                && d.tag_name().namespace() == Some(C_NS)
+                && matches!(
+                    d.tag_name().name(),
+                    "barChart"
+                        | "lineChart"
+                        | "areaChart"
+                        | "pieChart"
+                        | "doughnutChart"
+                        | "scatterChart"
+                        | "radarChart"
+                        | "surfaceChart"
+                        | "bubbleChart"
+                )
+        })?;
         if matches!(
             plot_type.tag_name().name(),
             "scatterChart" | "bubbleChart" | "surfaceChart"
@@ -514,16 +507,13 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
             if let Some(val) = ser.children().find(|&d| is_el(d, C_NS, "val")) {
                 let mut values: HashMap<usize, String> = HashMap::new();
                 let mut max_idx = 0usize;
-                for pt in val
-                    .descendants()
-                    .filter(|&d| is_el(d, C_NS, "pt"))
-                {
+                for pt in val.descendants().filter(|&d| is_el(d, C_NS, "pt")) {
                     let idx: usize = pt.attribute("idx").unwrap_or("0").parse().unwrap_or(0);
                     if let Some(v) = pt.descendants().find(|&d| is_el(d, C_NS, "v")) {
                         let raw = v.text().unwrap_or("");
                         let rendered = raw
                             .parse::<f64>()
-                            .map(|f| python_float_str(f))
+                            .map(python_float_str)
                             .unwrap_or_else(|_| raw.to_string());
                         values.insert(idx, rendered);
                     } else {
@@ -542,7 +532,9 @@ fn emit_chart(frame: roxmltree::Node, c: &mut PptxCtx) -> String {
         }
 
         let cats = categories.unwrap_or_default();
-        let row_count = cats.len().max(series_values.iter().map(|v| v.len()).sum::<usize>().max(0));
+        let row_count = cats
+            .len()
+            .max(series_values.iter().map(Vec::len).sum::<usize>());
 
         let mut header: Vec<String> = vec!["Category".to_string()];
         header.extend(series_names);
@@ -599,7 +591,11 @@ impl DocumentConverter for PptxConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -622,10 +618,7 @@ impl DocumentConverter for PptxConverter {
         let pres_tree = roxmltree::Document::parse(&pres_xml)
             .map_err(|e| ConverterError(format!("presentation.xml parse: {}", e)))?;
         let mut slide_parts: Vec<String> = Vec::new();
-        for sld_id in pres_tree
-            .descendants()
-            .filter(|&d| is_el(d, P_NS, "sldId"))
-        {
+        for sld_id in pres_tree.descendants().filter(|&d| is_el(d, P_NS, "sldId")) {
             if let Some(rid) = sld_id.attribute((R_NS, "id")) {
                 if let Some(target) = pres_rels.get(rid) {
                     let path = if let Some(stripped) = target.strip_prefix('/') {
@@ -661,10 +654,7 @@ impl DocumentConverter for PptxConverter {
             let Ok(slide_tree) = roxmltree::Document::parse(&slide_xml) else {
                 continue;
             };
-            let Some(sp_tree) = slide_tree
-                .descendants()
-                .find(|&d| is_el(d, P_NS, "spTree"))
-            else {
+            let Some(sp_tree) = slide_tree.descendants().find(|&d| is_el(d, P_NS, "spTree")) else {
                 continue;
             };
 
@@ -688,29 +678,27 @@ impl DocumentConverter for PptxConverter {
 
             // speaker notes (only if a notesSlide rel exists — never create)
             let rels = ctx.rels_for(slide_part);
-            let notes_part = rels
-                .values()
-                .find(|t| t.contains("notesSlide"))
-                .map(|t| {
-                    if let Some(stripped) = t.strip_prefix('/') {
-                        stripped.to_string()
-                    } else {
-                        let base_dir =
-                            slide_part.rfind('/').map(|p| &slide_part[..p]).unwrap_or("");
-                        let mut parts: Vec<&str> =
-                            base_dir.split('/').collect();
-                        for seg in t.split('/') {
-                            match seg {
-                                "." => {}
-                                ".." => {
-                                    parts.pop();
-                                }
-                                s => parts.push(s),
+            let notes_part = rels.values().find(|t| t.contains("notesSlide")).map(|t| {
+                if let Some(stripped) = t.strip_prefix('/') {
+                    stripped.to_string()
+                } else {
+                    let base_dir = slide_part
+                        .rfind('/')
+                        .map(|p| &slide_part[..p])
+                        .unwrap_or("");
+                    let mut parts: Vec<&str> = base_dir.split('/').collect();
+                    for seg in t.split('/') {
+                        match seg {
+                            "." => {}
+                            ".." => {
+                                parts.pop();
                             }
+                            s => parts.push(s),
                         }
-                        parts.join("/")
                     }
-                });
+                    parts.join("/")
+                }
+            });
             if let Some(notes_part) = notes_part {
                 md.push_str("\n\n### Notes:\n");
                 let text = notes_text(&notes_part, &mut ctx);

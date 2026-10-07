@@ -7,7 +7,7 @@
 //! then feeds the HTML through the same in-crate markdownify pipeline.
 
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read};
 
 use super::super::converter::{
     ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
@@ -22,7 +22,6 @@ use super::docx_math::M_NS;
 const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const WP_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
-const A_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
 pub struct DocxConverter;
 
@@ -32,11 +31,7 @@ impl Default for DocxConverter {
     }
 }
 
-fn is_el<'a, 'input>(
-    node: roxmltree::Node<'a, 'input>,
-    ns: &str,
-    local: &str,
-) -> bool {
+fn is_el<'a, 'input>(node: roxmltree::Node<'a, 'input>, ns: &str, local: &str) -> bool {
     node.tag_name().namespace() == Some(ns) && node.tag_name().name() == local
 }
 
@@ -138,18 +133,6 @@ impl<'a> DocxContext<'a> {
     }
 }
 
-/// Runs a closure over the parsed XML of a zip member.
-fn with_xml<T>(
-    ctx: &mut DocxContext,
-    name: &str,
-    f: impl FnOnce(&roxmltree::Document) -> Option<T>,
-) -> Option<T> {
-    let bytes = ctx.read_zip_file(name)?;
-    let text = String::from_utf8_lossy(&bytes);
-    let tree = roxmltree::Document::parse(&text).ok()?;
-    f(&tree)
-}
-
 fn style_heading_level(ctx: &DocxContext, style_id: &str) -> Option<usize> {
     let name = ctx.style_names.get(style_id)?;
     let lower = name.to_lowercase();
@@ -180,9 +163,11 @@ fn run_format(r: roxmltree::Node) -> RunFormat {
             let val = child.attribute((W_NS, "val"));
             let on = match val {
                 None => true,
-                Some(v) => !v.eq_ignore_ascii_case("false")
-                    && !v.eq_ignore_ascii_case("0")
-                    && !v.eq_ignore_ascii_case("none"),
+                Some(v) => {
+                    !v.eq_ignore_ascii_case("false")
+                        && !v.eq_ignore_ascii_case("0")
+                        && !v.eq_ignore_ascii_case("none")
+                }
             };
             match local {
                 "b" | "bCs" => fmt.bold = on,
@@ -213,9 +198,7 @@ fn render_content(dom: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
                     inner.push_str(&html_escape(rc.text().unwrap_or("")));
                 } else if is_el(rc, W_NS, "tab") {
                     inner.push('\t');
-                } else if is_el(rc, W_NS, "br")
-                    || is_el(rc, W_NS, "cr")
-                {
+                } else if is_el(rc, W_NS, "br") || is_el(rc, W_NS, "cr") {
                     inner.push_str("<br />");
                 } else if is_el(rc, W_NS, "drawing") || is_el(rc, W_NS, "pict") {
                     // images live inside runs in Word documents
@@ -261,18 +244,11 @@ fn render_content(dom: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
             }
             match target {
                 Some(t) if !t.is_empty() => {
-                    let href = if t.starts_with("http") { t } else { t };
-                    out.push_str(&format!(
-                        "<a href=\"{}\">{}</a>",
-                        html_escape(&href),
-                        inner
-                    ));
+                    out.push_str(&format!("<a href=\"{}\">{}</a>", html_escape(&t), inner));
                 }
                 _ => out.push_str(&inner),
             }
-        } else if is_el(child, W_NS, "drawing")
-            || is_el(child, W_NS, "pict")
-        {
+        } else if is_el(child, W_NS, "drawing") || is_el(child, W_NS, "pict") {
             render_image(child, ctx, out);
         } else if is_el(child, M_NS, "oMathPara") {
             // block equation: every child oMath becomes a $$...$$ block
@@ -321,16 +297,6 @@ fn render_image(node: roxmltree::Node, ctx: &mut DocxContext, out: &mut String) 
     ));
 }
 
-fn collect_text(node: roxmltree::Node) -> String {
-    let mut out = String::new();
-    for d in node.descendants() {
-        if is_el(d, W_NS, "t") {
-            out.push_str(d.text().unwrap_or(""));
-        }
-    }
-    out
-}
-
 /// Renders a w:p (paragraph) — headings are resolved via the style NAME.
 fn render_paragraph(p: roxmltree::Node, ctx: &mut DocxContext, out: &mut String) {
     let style_id = p
@@ -343,7 +309,9 @@ fn render_paragraph(p: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
     let mut inner = String::new();
     render_content(p, ctx, &mut inner);
 
-    let heading_level = style_id.as_deref().and_then(|id| style_heading_level(ctx, id));
+    let heading_level = style_id
+        .as_deref()
+        .and_then(|id| style_heading_level(ctx, id));
     if inner.is_empty() {
         return; // empty paragraphs produce nothing, like mammoth
     }
@@ -392,7 +360,11 @@ impl DocumentConverter for DocxConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -442,4 +414,3 @@ impl DocumentConverter for DocxConverter {
         Ok(result)
     }
 }
-

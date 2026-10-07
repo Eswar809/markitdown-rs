@@ -13,7 +13,7 @@ pub mod xlsx;
 pub use csv::CsvConverter;
 pub use docx::DocxConverter;
 pub use html::HtmlConverter;
-pub use plain_text::PlainTextConverter;
 pub use pdf::PdfConverter;
+pub use plain_text::PlainTextConverter;
 pub use pptx::PptxConverter;
 pub use xlsx::XlsxConverter;

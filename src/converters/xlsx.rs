@@ -79,13 +79,15 @@ fn parse_sheet_xml(xml: &str, shared: &[String]) -> Vec<Vec<Cell>> {
     };
     let mut rows: Vec<Vec<Cell>> = Vec::new();
     let ns_main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-    for row in tree.descendants().filter(|n| {
-        n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "row"
-    }) {
+    for row in tree
+        .descendants()
+        .filter(|n| n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "row")
+    {
         let mut cells: Vec<Cell> = Vec::new();
-        for c in row.children().filter(|n| {
-            n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "c"
-        }) {
+        for c in row
+            .children()
+            .filter(|n| n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "c")
+        {
             let col = c
                 .attribute("r")
                 .map(col_index)
@@ -95,8 +97,7 @@ fn parse_sheet_xml(xml: &str, shared: &[String]) -> Vec<Vec<Cell>> {
                 let text: String = c
                     .descendants()
                     .filter(|n| {
-                        n.tag_name().namespace() == Some(ns_main)
-                            && n.tag_name().name() == "t"
+                        n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "t"
                     })
                     .filter_map(|n| n.text())
                     .collect();
@@ -105,8 +106,7 @@ fn parse_sheet_xml(xml: &str, shared: &[String]) -> Vec<Vec<Cell>> {
                 let Some(v) = c
                     .children()
                     .find(|&n| {
-                        n.tag_name().namespace() == Some(ns_main)
-                            && n.tag_name().name() == "v"
+                        n.tag_name().namespace() == Some(ns_main) && n.tag_name().name() == "v"
                     })
                     .and_then(|n| n.text())
                 else {
@@ -174,7 +174,11 @@ impl DocumentConverter for XlsxConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -197,15 +201,15 @@ impl DocumentConverter for XlsxConverter {
             let _ = f.read_to_string(&mut xml);
             if let Ok(tree) = roxmltree::Document::parse(&xml) {
                 const NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-                for si in tree.descendants().filter(|n| {
-                    n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "si"
-                }) {
+                for si in tree
+                    .descendants()
+                    .filter(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "si")
+                {
                     // concatenate all <t> descendants (rich text runs)
                     let text: String = si
                         .descendants()
                         .filter(|n| {
-                            n.tag_name().namespace() == Some(NS)
-                                && n.tag_name().name() == "t"
+                            n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "t"
                         })
                         .filter_map(|n| n.text())
                         .collect();
@@ -237,13 +241,10 @@ impl DocumentConverter for XlsxConverter {
             .map_err(|e| ConverterError(format!("workbook rels parse: {}", e)))?;
 
         const NS_MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        const NS_R: &str =
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
         let mut sheets: Vec<Sheet> = Vec::new();
         for node in wb_tree.descendants() {
-            if node.tag_name().namespace() == Some(NS_MAIN)
-                && node.tag_name().name() == "sheet"
-            {
+            if node.tag_name().namespace() == Some(NS_MAIN) && node.tag_name().name() == "sheet" {
                 let name = node.attribute("name").unwrap_or("Sheet").to_string();
                 if let Some(rid) = node.attribute((NS_R, "id")) {
                     sheets.push(Sheet {
@@ -256,9 +257,7 @@ impl DocumentConverter for XlsxConverter {
         let mut rid_to_target: HashMap<String, String> = HashMap::new();
         for node in rel_tree.descendants() {
             if node.tag_name().name() == "Relationship" {
-                if let (Some(id), Some(target)) =
-                    (node.attribute("Id"), node.attribute("Target"))
-                {
+                if let (Some(id), Some(target)) = (node.attribute("Id"), node.attribute("Target")) {
                     rid_to_target.insert(id.to_string(), target.to_string());
                 }
             }
@@ -277,10 +276,7 @@ impl DocumentConverter for XlsxConverter {
                     }
                 })
                 .ok_or_else(|| {
-                    ConverterError(format!(
-                        "missing worksheet target for {}",
-                        sheet.name
-                    ))
+                    ConverterError(format!("missing worksheet target for {}", sheet.name))
                 })?;
 
             let sheet_xml = {
@@ -303,8 +299,7 @@ impl DocumentConverter for XlsxConverter {
                 .unwrap_or(0);
 
             // grid[row][col] with None for empty (NaN) cells
-            let mut grid: Vec<Vec<Option<String>>> =
-                vec![vec![None; width]; rows.len()];
+            let mut grid: Vec<Vec<Option<String>>> = vec![vec![None; width]; rows.len()];
             for (ri, row) in rows.iter().enumerate() {
                 for cell in row {
                     if cell.col < width {
@@ -314,7 +309,11 @@ impl DocumentConverter for XlsxConverter {
             }
 
             // pandas drops leading fully-empty rows before the header row
-            while grid.first().map(|r| r.iter().all(Option::is_none)).unwrap_or(false) {
+            while grid
+                .first()
+                .map(|r| r.iter().all(Option::is_none))
+                .unwrap_or(false)
+            {
                 grid.remove(0);
             }
             if grid.is_empty() {
@@ -336,10 +335,7 @@ impl DocumentConverter for XlsxConverter {
             for row in data_rows {
                 html.push_str("    <tr>\n");
                 for i in 0..width {
-                    let v = row
-                        .get(i)
-                        .and_then(|v| v.clone())
-                        .unwrap_or_default(); // NaN → na_rep ""
+                    let v = row.get(i).and_then(|v| v.clone()).unwrap_or_default(); // NaN → na_rep ""
                     html.push_str(&format!("      <td>{}</td>\n", html_escape(&v)));
                 }
                 html.push_str("    </tr>\n");
