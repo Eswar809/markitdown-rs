@@ -124,7 +124,11 @@ impl DocumentConverter for CsvConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -210,10 +214,7 @@ mod tests {
             ..Default::default()
         };
         CsvConverter
-            .convert(
-                &mut Cursor::new(input.as_bytes().to_vec()),
-                &info,
-            )
+            .convert(&mut Cursor::new(input.as_bytes().to_vec()), &info)
             .unwrap()
             .markdown
     }

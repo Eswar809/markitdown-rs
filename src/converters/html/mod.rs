@@ -5,10 +5,8 @@ mod parser;
 
 use std::io::Cursor;
 
-use crate::converter::{
-    ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo,
-};
 use self::parser::{parse, Dom, NodeKind};
+use crate::converter::{ConverterError, DocumentConverter, DocumentConverterResult, StreamInfo};
 
 const ACCEPTED_MIME_TYPE_PREFIXES: [&str; 2] = ["text/html", "application/xhtml"];
 const ACCEPTED_FILE_EXTENSIONS: [&str; 2] = [".html", ".htm"];
@@ -28,7 +26,11 @@ impl DocumentConverter for HtmlConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -51,9 +53,7 @@ impl DocumentConverter for HtmlConverter {
 
 /// Shared HTML → Markdown pipeline used by both the HTML converter and the
 /// DOCX converter (which generates HTML as its intermediate form).
-pub(crate) fn convert_html_string(
-    html: &str,
-) -> Result<DocumentConverterResult, ConverterError> {
+pub(crate) fn convert_html_string(html: &str) -> Result<DocumentConverterResult, ConverterError> {
     let mut dom = parse(html);
 
     // Remove javascript and style blocks (upstream extracts them from the
@@ -123,7 +123,6 @@ mod tests {
             .markdown
     }
 
-
     #[test]
     fn headings_and_paragraph() {
         assert_eq!(
@@ -143,9 +142,7 @@ mod tests {
             "bad"
         );
         assert_eq!(
-            convert_html(
-                r#"<p><a href="https://example.com">https://example.com</a></p>"#
-            ),
+            convert_html(r#"<p><a href="https://example.com">https://example.com</a></p>"#),
             "<https://example.com>"
         );
     }
@@ -165,9 +162,7 @@ mod tests {
     #[test]
     fn script_style_removed() {
         assert_eq!(
-            convert_html(
-                "<body><script>evil()</script><style>.x{}</style><p>kept</p></body>"
-            ),
+            convert_html("<body><script>evil()</script><style>.x{}</style><p>kept</p></body>"),
             "kept"
         );
     }
@@ -175,9 +170,7 @@ mod tests {
     #[test]
     fn checkbox() {
         assert_eq!(
-            convert_html(
-                r#"<input type="checkbox" checked>done<input type="checkbox">todo"#
-            ),
+            convert_html(r#"<input type="checkbox" checked>done<input type="checkbox">todo"#),
             "[x] done[ ] todo"
         );
     }
@@ -203,9 +196,7 @@ mod tests {
     #[test]
     fn lists_and_emphasis() {
         assert_eq!(
-            convert_html(
-                "<p><b>bold</b> and <em>em</em> and <u>u</u> and <s>del</s></p>"
-            ),
+            convert_html("<p><b>bold</b> and <em>em</em> and <u>u</u> and <s>del</s></p>"),
             "**bold** and *em* and <u>u</u> and ~~del~~"
         );
         assert_eq!(
@@ -228,7 +219,10 @@ mod tests {
 
     #[test]
     fn escapes_and_entities() {
-        assert_eq!(convert_html("<p>3 * 4 + snake_case</p>"), "3 \\* 4 + snake\\_case");
+        assert_eq!(
+            convert_html("<p>3 * 4 + snake_case</p>"),
+            "3 \\* 4 + snake\\_case"
+        );
         assert_eq!(
             convert_html("<p>A &amp; B &lt; C &quot;d&quot;</p>"),
             "A & B < C \"d\""

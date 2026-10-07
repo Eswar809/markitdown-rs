@@ -34,7 +34,11 @@ impl DocumentConverter for PdfConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }

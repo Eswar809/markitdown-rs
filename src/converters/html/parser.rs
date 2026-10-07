@@ -9,7 +9,10 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeKind {
     Document,
-    Element { name: String, attrs: Vec<(String, String)> },
+    Element {
+        name: String,
+        attrs: Vec<(String, String)>,
+    },
     Text(String),
     Comment,
 }
@@ -100,7 +103,11 @@ impl Dom {
         let parent = self.nodes[idx].parent?;
         let siblings = &self.nodes[parent].children;
         let pos = siblings.iter().position(|&c| c == idx)?;
-        if pos == 0 { None } else { Some(siblings[pos - 1]) }
+        if pos == 0 {
+            None
+        } else {
+            Some(siblings[pos - 1])
+        }
     }
 
     pub fn next_sibling(&self, idx: usize) -> Option<usize> {
@@ -145,17 +152,38 @@ impl Dom {
 }
 
 const VOID_ELEMENTS: [&str; 14] = [
-    "br", "img", "input", "hr", "meta", "link", "area", "base", "col", "embed",
-    "source", "track", "wbr", "param",
+    "br", "img", "input", "hr", "meta", "link", "area", "base", "col", "embed", "source", "track",
+    "wbr", "param",
 ];
 
 /// Tags that imply the end of a currently-open tag when they start — a
 /// pragmatic subset of BS4/html.parser nesting recovery.
 fn implied_end_on_start(open: &str, new: &str) -> bool {
     const BLOCK: [&str; 24] = [
-        "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li",
-        "table", "blockquote", "pre", "form", "section", "article", "header",
-        "footer", "nav", "aside", "dl", "figure", "main",
+        "p",
+        "div",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "ul",
+        "ol",
+        "li",
+        "table",
+        "blockquote",
+        "pre",
+        "form",
+        "section",
+        "article",
+        "header",
+        "footer",
+        "nav",
+        "aside",
+        "dl",
+        "figure",
+        "main",
     ];
     const HEADINGS: [&str; 6] = ["h1", "h2", "h3", "h4", "h5", "h6"];
     match open {
@@ -206,8 +234,8 @@ fn decode_entities(s: &str) -> String {
                     "eacute" => Some('\u{e9}'),
                     _ => {
                         if let Some(num) = entity.strip_prefix('#') {
-                            let code = if let Some(hex) = num.strip_prefix('x')
-                                .or_else(|| num.strip_prefix('X'))
+                            let code = if let Some(hex) =
+                                num.strip_prefix('x').or_else(|| num.strip_prefix('X'))
                             {
                                 u32::from_str_radix(hex, 16).ok()
                             } else {
@@ -236,7 +264,13 @@ fn decode_entities(s: &str) -> String {
 /// Parses HTML into a Dom. Whitespace text nodes are preserved (markdownify's
 /// sibling logic needs the raw chain).
 pub fn parse(html: &str) -> Dom {
-    let mut dom = Dom { nodes: vec![Node { kind: NodeKind::Document, parent: None, children: Vec::new() }] };
+    let mut dom = Dom {
+        nodes: vec![Node {
+            kind: NodeKind::Document,
+            parent: None,
+            children: Vec::new(),
+        }],
+    };
     let mut stack: Vec<usize> = vec![0]; // document root
 
     let bytes = html.as_bytes();
@@ -249,7 +283,11 @@ pub fn parse(html: &str) -> Dom {
         }
         let parent = *stack.last().unwrap();
         let idx = dom.nodes.len();
-        dom.nodes.push(Node { kind: NodeKind::Text(decode_entities(&text)), parent: Some(parent), children: Vec::new() });
+        dom.nodes.push(Node {
+            kind: NodeKind::Text(decode_entities(&text)),
+            parent: Some(parent),
+            children: Vec::new(),
+        });
         dom.nodes[parent].children.push(idx);
     }
 
@@ -262,23 +300,43 @@ pub fn parse(html: &str) -> Dom {
                 push_text(&mut dom, &st, t);
             }
             if html[i..].starts_with("<!--") {
-                let end = html[i..].find("-->").map(|off| i + off + 3).unwrap_or(bytes.len());
+                let end = html[i..]
+                    .find("-->")
+                    .map(|off| i + off + 3)
+                    .unwrap_or(bytes.len());
                 let parent = *stack.last().unwrap();
                 let idx = dom.nodes.len();
-                dom.nodes.push(Node { kind: NodeKind::Comment, parent: Some(parent), children: Vec::new() });
+                dom.nodes.push(Node {
+                    kind: NodeKind::Comment,
+                    parent: Some(parent),
+                    children: Vec::new(),
+                });
                 dom.nodes[parent].children.push(idx);
                 i = end;
             } else if html[i..].len() > 1 && (bytes[i + 1] == b'!' || bytes[i + 1] == b'?') {
                 // doctype / processing instruction — skip to '>'
-                let end = html[i..].find('>').map(|off| i + off + 1).unwrap_or(bytes.len());
+                let end = html[i..]
+                    .find('>')
+                    .map(|off| i + off + 1)
+                    .unwrap_or(bytes.len());
                 i = end;
             } else if html[i..].starts_with("</") {
                 // end tag
-                let end = html[i..].find('>').map(|off| i + off + 1).unwrap_or(bytes.len());
+                let end = html[i..]
+                    .find('>')
+                    .map(|off| i + off + 1)
+                    .unwrap_or(bytes.len());
                 let raw = &html[i + 2..end.saturating_sub(1)];
-                let name = raw.split(|c: char| c.is_whitespace() || c == '/').next().unwrap_or("").to_lowercase();
+                let name = raw
+                    .split(|c: char| c.is_whitespace() || c == '/')
+                    .next()
+                    .unwrap_or("")
+                    .to_lowercase();
                 if !name.is_empty() && !VOID_ELEMENTS.contains(&name.as_str()) {
-                    if let Some(pos) = stack.iter().rposition(|&s| dom.name(s) == Some(name.as_str())) {
+                    if let Some(pos) = stack
+                        .iter()
+                        .rposition(|&s| dom.name(s) == Some(name.as_str()))
+                    {
                         if pos > 0 {
                             stack.truncate(pos);
                         }
@@ -308,7 +366,10 @@ pub fn parse(html: &str) -> Dom {
                 let parent = *stack.last().unwrap();
                 let idx = dom.nodes.len();
                 dom.nodes.push(Node {
-                    kind: NodeKind::Element { name: name.clone(), attrs },
+                    kind: NodeKind::Element {
+                        name: name.clone(),
+                        attrs,
+                    },
                     parent: Some(parent),
                     children: Vec::new(),
                 });

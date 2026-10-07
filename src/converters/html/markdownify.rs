@@ -76,9 +76,7 @@ fn should_remove_whitespace_inside_name(name: Option<&str>) -> bool {
 fn should_remove_whitespace_outside_node(dom: &Dom, idx: Option<usize>) -> bool {
     match idx {
         None => false,
-        Some(i) => {
-            should_remove_whitespace_inside_name(dom.name(i)) || dom.name(i) == Some("pre")
-        }
+        Some(i) => should_remove_whitespace_inside_name(dom.name(i)) || dom.name(i) == Some("pre"),
     }
 }
 
@@ -168,14 +166,14 @@ fn process_text(dom: &Dom, idx: usize, raw: &str, parent_tags: &HashSet<String>)
 
     let prev = dom.prev_sibling(idx);
     let next = dom.next_sibling(idx);
-    let parent_name = dom.nodes[idx].parent.and_then(|p| dom.name(p).map(String::from));
+    let parent_name = dom.nodes[idx]
+        .parent
+        .and_then(|p| dom.name(p).map(String::from));
 
     if should_remove_whitespace_outside_node(dom, prev)
         || (should_remove_whitespace_inside_name(parent_name.as_deref()) && prev.is_none())
     {
-        text = text
-            .trim_start_matches([' ', '\t', '\r', '\n'])
-            .to_string();
+        text = text.trim_start_matches([' ', '\t', '\r', '\n']).to_string();
     }
     if should_remove_whitespace_outside_node(dom, next)
         || (should_remove_whitespace_inside_name(parent_name.as_deref()) && next.is_none())
@@ -245,8 +243,16 @@ fn collapse_child_newlines(strings: Vec<String>) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 fn chomp(text: &str) -> (String, String, String) {
-    let prefix = if text.starts_with(' ') { " ".to_string() } else { String::new() };
-    let suffix = if text.ends_with(' ') { " ".to_string() } else { String::new() };
+    let prefix = if text.starts_with(' ') {
+        " ".to_string()
+    } else {
+        String::new()
+    };
+    let suffix = if text.ends_with(' ') {
+        " ".to_string()
+    } else {
+        String::new()
+    };
     (prefix, suffix, text.trim().to_string())
 }
 
@@ -424,7 +430,11 @@ fn convert_blockquote(text: &str, parent_tags: &HashSet<String>) -> String {
 
 fn convert_br(text: &str, parent_tags: &HashSet<String>) -> String {
     if parent_tags.contains("_inline") {
-        return if text.is_empty() { " ".to_string() } else { format!("{} ", text) };
+        return if text.is_empty() {
+            " ".to_string()
+        } else {
+            format!("{} ", text)
+        };
     }
     format!("  \n{}", text) // newline_style = SPACES
 }
@@ -593,11 +603,7 @@ fn convert_list(dom: &Dom, idx: usize, text: &str, parent_tags: &HashSet<String>
     if parent_tags.contains("li") {
         return format!("\n{}", text.trim_end());
     }
-    format!(
-        "\n\n{}{}",
-        text,
-        if before_paragraph { "\n" } else { "" }
-    )
+    format!("\n\n{}{}", text, if before_paragraph { "\n" } else { "" })
 }
 
 fn convert_p(text: &str, parent_tags: &HashSet<String>) -> String {
@@ -623,9 +629,7 @@ fn convert_pre(text: &str) -> String {
 /// ^[ \n]*\n removed from the start, \n[ \n]*$ removed from the end.
 fn strip_pre(text: &str) -> String {
     let mut t = text;
-    let run_end = t
-        .find(|c: char| c != ' ' && c != '\n')
-        .unwrap_or(t.len());
+    let run_end = t.find(|c: char| c != ' ' && c != '\n').unwrap_or(t.len());
     if let Some(last_nl) = t[..run_end].rfind('\n') {
         t = &t[last_nl + 1..];
     }
@@ -653,10 +657,7 @@ fn convert_tr(dom: &Dom, idx: usize, text: &str) -> String {
     let is_first_row = dom.prev_element_sibling(idx).is_none();
     let parent = dom.nodes[idx].parent;
     let parent_name = parent.and_then(|p| dom.name(p).map(String::from));
-    let is_headrow = (!cells.is_empty()
-        && cells
-            .iter()
-            .all(|&c| dom.name(c) == Some("th")))
+    let is_headrow = (!cells.is_empty() && cells.iter().all(|&c| dom.name(c) == Some("th")))
         || (parent_name.as_deref() == Some("thead")
             && parent
                 .map(|p| dom.find_all(p, &["tr"]).len() == 1)
@@ -685,9 +686,7 @@ fn convert_tr(dom: &Dom, idx: usize, text: &str) -> String {
         || (is_first_row
             && (parent_name.as_deref() == Some("table")
                 || (parent_name.as_deref() == Some("tbody")
-                    && parent
-                        .and_then(|p| dom.prev_sibling(p))
-                        .is_none())))
+                    && parent.and_then(|p| dom.prev_sibling(p)).is_none())))
     {
         overline = format!(
             "| {} |\n| {} |\n",

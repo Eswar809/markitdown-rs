@@ -32,11 +32,7 @@ impl Default for DocxConverter {
     }
 }
 
-fn is_el<'a, 'input>(
-    node: roxmltree::Node<'a, 'input>,
-    ns: &str,
-    local: &str,
-) -> bool {
+fn is_el<'a, 'input>(node: roxmltree::Node<'a, 'input>, ns: &str, local: &str) -> bool {
     node.tag_name().namespace() == Some(ns) && node.tag_name().name() == local
 }
 
@@ -180,9 +176,11 @@ fn run_format(r: roxmltree::Node) -> RunFormat {
             let val = child.attribute((W_NS, "val"));
             let on = match val {
                 None => true,
-                Some(v) => !v.eq_ignore_ascii_case("false")
-                    && !v.eq_ignore_ascii_case("0")
-                    && !v.eq_ignore_ascii_case("none"),
+                Some(v) => {
+                    !v.eq_ignore_ascii_case("false")
+                        && !v.eq_ignore_ascii_case("0")
+                        && !v.eq_ignore_ascii_case("none")
+                }
             };
             match local {
                 "b" | "bCs" => fmt.bold = on,
@@ -213,9 +211,7 @@ fn render_content(dom: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
                     inner.push_str(&html_escape(rc.text().unwrap_or("")));
                 } else if is_el(rc, W_NS, "tab") {
                     inner.push('\t');
-                } else if is_el(rc, W_NS, "br")
-                    || is_el(rc, W_NS, "cr")
-                {
+                } else if is_el(rc, W_NS, "br") || is_el(rc, W_NS, "cr") {
                     inner.push_str("<br />");
                 } else if is_el(rc, W_NS, "drawing") || is_el(rc, W_NS, "pict") {
                     // images live inside runs in Word documents
@@ -262,17 +258,11 @@ fn render_content(dom: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
             match target {
                 Some(t) if !t.is_empty() => {
                     let href = if t.starts_with("http") { t } else { t };
-                    out.push_str(&format!(
-                        "<a href=\"{}\">{}</a>",
-                        html_escape(&href),
-                        inner
-                    ));
+                    out.push_str(&format!("<a href=\"{}\">{}</a>", html_escape(&href), inner));
                 }
                 _ => out.push_str(&inner),
             }
-        } else if is_el(child, W_NS, "drawing")
-            || is_el(child, W_NS, "pict")
-        {
+        } else if is_el(child, W_NS, "drawing") || is_el(child, W_NS, "pict") {
             render_image(child, ctx, out);
         } else if is_el(child, M_NS, "oMathPara") {
             // block equation: every child oMath becomes a $$...$$ block
@@ -343,7 +333,9 @@ fn render_paragraph(p: roxmltree::Node, ctx: &mut DocxContext, out: &mut String)
     let mut inner = String::new();
     render_content(p, ctx, &mut inner);
 
-    let heading_level = style_id.as_deref().and_then(|id| style_heading_level(ctx, id));
+    let heading_level = style_id
+        .as_deref()
+        .and_then(|id| style_heading_level(ctx, id));
     if inner.is_empty() {
         return; // empty paragraphs produce nothing, like mammoth
     }
@@ -392,7 +384,11 @@ impl DocumentConverter for DocxConverter {
 
     fn accepts(&self, _stream: &mut Cursor<Vec<u8>>, stream_info: &StreamInfo) -> bool {
         let mimetype = stream_info.mimetype.as_deref().unwrap_or("").to_lowercase();
-        let extension = stream_info.extension.as_deref().unwrap_or("").to_lowercase();
+        let extension = stream_info
+            .extension
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase();
         if ACCEPTED_FILE_EXTENSIONS.contains(&extension.as_str()) {
             return true;
         }
@@ -442,4 +438,3 @@ impl DocumentConverter for DocxConverter {
         Ok(result)
     }
 }
-

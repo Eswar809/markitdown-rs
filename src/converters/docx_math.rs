@@ -40,12 +40,38 @@ fn escape_latex(s: &str) -> String {
 fn t_char(c: char) -> Option<&'static str> {
     // Greek letters (math italic block U+1D6FC..U+1D71B)
     const GREEK: [&str; 32] = [
-        "\\alpha ", "\\beta ", "\\gamma ", "\\delta ", "\\epsilon ", "\\zeta ",
-        "\\eta ", "\\theta ", "\\iota ", "\\kappa ", "\\lambda ", "\\mu ",
-        "\\nu ", "\\xi ", "\\omicron ", "\\pi ", "\\rho ", "\\varsigma ",
-        "\\sigma ", "\\tau ", "\\upsilon ", "\\phi ", "\\chi ", "\\psi ",
-        "\\omega ", "\\partial ", "\\varepsilon ", "\\vartheta ", "\\varkappa ",
-        "\\varphi ", "\\varrho ", "\\varpi ",
+        "\\alpha ",
+        "\\beta ",
+        "\\gamma ",
+        "\\delta ",
+        "\\epsilon ",
+        "\\zeta ",
+        "\\eta ",
+        "\\theta ",
+        "\\iota ",
+        "\\kappa ",
+        "\\lambda ",
+        "\\mu ",
+        "\\nu ",
+        "\\xi ",
+        "\\omicron ",
+        "\\pi ",
+        "\\rho ",
+        "\\varsigma ",
+        "\\sigma ",
+        "\\tau ",
+        "\\upsilon ",
+        "\\phi ",
+        "\\chi ",
+        "\\psi ",
+        "\\omega ",
+        "\\partial ",
+        "\\varepsilon ",
+        "\\vartheta ",
+        "\\varkappa ",
+        "\\varphi ",
+        "\\varrho ",
+        "\\varpi ",
     ];
     let u = c as u32;
     if (0x1D6FC..=0x1D71B).contains(&u) {
@@ -333,9 +359,7 @@ fn process_pr(node: roxmltree::Node) -> Pr {
 }
 
 fn process_unknown(node: roxmltree::Node, stag: &str) -> Option<Conv> {
-    const DIRECT_TAGS: [&str; 8] = [
-        "box", "sSub", "sSup", "sSubSup", "num", "den", "deg", "e",
-    ];
+    const DIRECT_TAGS: [&str; 8] = ["box", "sSub", "sSup", "sSubSup", "num", "den", "deg", "e"];
     if DIRECT_TAGS.contains(&stag) {
         Some(Conv::Text(process_children(node, None)))
     } else if stag.ends_with("Pr") {
@@ -446,10 +470,7 @@ fn do_d(node: roxmltree::Node) -> Option<String> {
         Some(_) => ".".to_string(),
     };
     let e = dict_text(&dict, "e");
-    Some(format!(
-        "{}\\left{}{}\\right{}",
-        pr.text, left, e, right
-    ))
+    Some(format!("{}\\left{}{}\\right{}", pr.text, left, e, right))
 }
 
 /// T.get(key, key): per-char conversion, keep the char if not in T.

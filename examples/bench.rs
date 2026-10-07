@@ -21,7 +21,9 @@ fn main() {
     for _ in 0..10 {
         cursor.set_position(0);
         let t = std::time::Instant::now();
-        let res = md.convert_stream_cursor(&mut cursor, &[info.clone()]).expect("convert failed");
+        let res = md
+            .convert_stream_cursor(&mut cursor, &[info.clone()])
+            .expect("convert failed");
         sink = sink.max(res.markdown.len());
         let d = t.elapsed().as_secs_f64();
         if d < best {
